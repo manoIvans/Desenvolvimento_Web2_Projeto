@@ -1,0 +1,26 @@
+# Binários
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Cobertura e testes
+*.out
+*.test
+cobertura.out
+
+# Ferramentas e IDEs
+.idea/
+.vscode/
+.claude/
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Configuração local com credenciais reais (use configuracoes.exemplo.json como base)
+configuracoes.json
+
+
+docs/
