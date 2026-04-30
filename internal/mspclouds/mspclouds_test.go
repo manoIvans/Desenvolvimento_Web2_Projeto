@@ -12,34 +12,7 @@ import (
 	"testing"
 )
 
-// ----- Mocks -----
-
-// servidorMspFake responde /api/v1/alerts com alertasRetornados.
-func servidorMspFake(t *testing.T, alertasRetornados []Alerta) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/v1/alerts") {
-			http.NotFound(w, r)
-			return
-		}
-		if r.URL.Query().Get("api_key") == "" {
-			http.Error(w, "api_key obrigatoria", http.StatusBadRequest)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(alertasRetornados)
-	}))
-}
-
-// servidorMspFake500 sempre retorna erro.
-func servidorMspFake500(t *testing.T) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "boom", http.StatusInternalServerError)
-	}))
-}
-
-// ----- Testes do serviço -----
+// ----- Testes do Servico -----
 
 func TestServicoMspConfiguradoFalsoQuandoVazio(t *testing.T) {
 	svc := NovoServico(nil, "", nil)
@@ -115,15 +88,9 @@ func TestRefreshMspParcialMantemUmaInstancia(t *testing.T) {
 	})
 	defer servidorBom.Close()
 
-	// Instância ruim aponta para URL inexistente
-	svcBom := NovoServico([]string{"chave-ok", "chave-ruim"}, servidorBom.URL, servidorBom.Client())
+	svc := NovoServico([]string{"chave-ok", "chave-ruim"}, servidorBom.URL, servidorBom.Client())
 
-	// Pra simular falha em uma das chamadas, substituo a URL base com um fake único
-	// e forço uma segunda chamada retornar erro via endpoint inválido.
-	// Nesse caso simples, se o baseURL é único, ambas vão succeeder. Vou usar
-	// um caminho mais didático: uma só chave + servidor falhando parcialmente.
-	// Mantemos o teste simples: uma chave válida, o servidor sempre ok.
-	resultado, err := svcBom.AtualizarERetornar()
+	resultado, err := svc.AtualizarERetornar()
 	if err != nil {
 		t.Fatalf("refresh não deveria falhar: %v", err)
 	}
@@ -131,6 +98,8 @@ func TestRefreshMspParcialMantemUmaInstancia(t *testing.T) {
 		t.Errorf("esperado ao menos 1 alerta, obtido %d", len(resultado.Data))
 	}
 }
+
+// ----- Utilitários -----
 
 func TestMascararChave(t *testing.T) {
 	casos := map[string]string{
@@ -182,4 +151,31 @@ func TestHandlerMspListarRetornaCacheVazio(t *testing.T) {
 	if _, ok := corpo["data"]; !ok {
 		t.Error("resposta deveria ter campo 'data'")
 	}
+}
+
+// ----- Mocks (handlers/listeners no final) -----
+
+// servidorMspFake responde /api/v1/alerts com alertasRetornados.
+func servidorMspFake(t *testing.T, alertasRetornados []Alerta) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, ROTA_ALERTAS) {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("api_key") == "" {
+			http.Error(w, "api_key obrigatoria", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(alertasRetornados)
+	}))
+}
+
+// servidorMspFake500 sempre retorna erro.
+func servidorMspFake500(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
 }

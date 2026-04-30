@@ -11,6 +11,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// ----- Testes -----
+
 func TestHealthzRetornaOk(t *testing.T) {
 	r := chi.NewRouter()
 	Rotas(r)

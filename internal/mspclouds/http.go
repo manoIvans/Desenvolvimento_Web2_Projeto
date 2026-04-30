@@ -11,6 +11,15 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// ----- Constantes -----
+
+const (
+	ROTA_LISTAR  = "/mspclouds"
+	ROTA_REFRESH = "/mspclouds/refresh"
+)
+
+// ----- Tipo Handler -----
+
 // Handler expõe os endpoints MSP Clouds usando um Servico injetado.
 type Handler struct {
 	servico *Servico
@@ -23,8 +32,8 @@ func NovoHandler(servico *Servico) *Handler {
 
 // Rotas registra /mspclouds e /mspclouds/refresh.
 func (h *Handler) Rotas(r chi.Router) {
-	r.Get("/mspclouds", h.listar)
-	r.Post("/mspclouds/refresh", h.refresh)
+	r.Get(ROTA_LISTAR, h.listar)
+	r.Post(ROTA_REFRESH, h.refresh)
 }
 
 // ----- Endpoints -----

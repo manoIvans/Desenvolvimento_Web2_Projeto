@@ -73,7 +73,7 @@ jobs:
       - name: Compilar binário
         run: |
           CGO_ENABLED=0 GOOS=linux \
-          go build -ldflags='-s -w' -o bin/signalhub ./cmd/api
+          go build -ldflags='-s -w' -o bin/signalhub .
 
       - uses: actions/upload-artifact@v4
         with:

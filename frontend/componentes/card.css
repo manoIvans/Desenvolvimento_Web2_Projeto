@@ -1,0 +1,64 @@
+/* ----- Card de problema/alerta (compartilhado) ----- */
+
+.card {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform .12s, box-shadow .12s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .08);
+}
+
+.card-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-titulo {
+  font-weight: 600;
+  color: var(--texto);
+  font-size: 1rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.card-evento {
+  color: var(--apagado);
+  font-size: .9rem;
+  line-height: 1.35;
+}
+
+.card-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .8rem;
+  color: var(--apagado);
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--borda);
+}
+
+
+/* ----- Selo (badge) generico ----- */
+
+.selo {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: #fff;
+  white-space: nowrap;
+}

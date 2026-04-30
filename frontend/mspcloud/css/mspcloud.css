@@ -1,0 +1,16 @@
+/* ----- Selos de tipo MSP Clouds ----- */
+
+.selo-tipo-backup  { background: var(--tipo-msp-backup); }
+.selo-tipo-rede    { background: var(--tipo-msp-rede); }
+.selo-tipo-sistema { background: var(--tipo-msp-sistema); }
+
+
+/* ----- Borda lateral do card MSP ----- */
+
+.card-mspcloud {
+  border-left: 4px solid var(--borda);
+}
+
+.card-mspcloud.tipo-backup  { border-left-color: var(--tipo-msp-backup); }
+.card-mspcloud.tipo-rede    { border-left-color: var(--tipo-msp-rede); }
+.card-mspcloud.tipo-sistema { border-left-color: var(--tipo-msp-sistema); }

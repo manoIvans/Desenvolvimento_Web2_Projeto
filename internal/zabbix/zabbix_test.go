@@ -15,52 +15,7 @@ import (
 	"SignalHub/internal/config"
 )
 
-// ----- Mocks -----
-
-// servidorZabbixFake retorna um httptest.Server que responde trigger.get com
-// triggersRetornados e apiinfo.version com versao.
-func servidorZabbixFake(t *testing.T, triggersRetornados []triggerRaw, versao string) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		corpo, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("fake zabbix: falha ao ler body: %v", err)
-		}
-
-		var req apiReq
-		if err := json.Unmarshal(corpo, &req); err != nil {
-			t.Fatalf("fake zabbix: body inválido: %v", err)
-		}
-
-		var resultado any
-		switch req.Method {
-		case "trigger.get":
-			resultado = triggersRetornados
-		case "apiinfo.version":
-			resultado = versao
-		default:
-			http.Error(w, "metodo nao suportado", http.StatusNotFound)
-			return
-		}
-
-		bytesResultado, _ := json.Marshal(resultado)
-		resposta := apiResp{Result: bytesResultado}
-		bytesResposta, _ := json.Marshal(resposta)
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(bytesResposta)
-	}))
-}
-
-// servidorZabbixFake500 sempre retorna HTTP 500.
-func servidorZabbixFake500(t *testing.T) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "boom", http.StatusInternalServerError)
-	}))
-}
-
-// ----- Testes do serviço -----
+// ----- Testes do Servico -----
 
 func TestServicoConfiguradoFalsoQuandoVazio(t *testing.T) {
 	svc := NovoServico(nil, nil)
@@ -202,7 +157,7 @@ func TestCarregarCacheVazioAntesDoRefresh(t *testing.T) {
 	}
 }
 
-// ----- Conversor -----
+// ----- Conversores -----
 
 func TestPrioridadeParaRotulo(t *testing.T) {
 	casos := map[string]string{
@@ -271,4 +226,49 @@ func TestHandlerListarRetornaCacheVazio(t *testing.T) {
 	if _, ok := corpo["data"]; !ok {
 		t.Error("resposta deveria ter campo 'data'")
 	}
+}
+
+// ----- Mocks (handlers/listeners no final) -----
+
+// servidorZabbixFake retorna um httptest.Server que responde trigger.get com
+// triggersRetornados e apiinfo.version com versao.
+func servidorZabbixFake(t *testing.T, triggersRetornados []triggerRaw, versao string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		corpo, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("fake zabbix: falha ao ler body: %v", err)
+		}
+
+		var req apiReq
+		if err := json.Unmarshal(corpo, &req); err != nil {
+			t.Fatalf("fake zabbix: body inválido: %v", err)
+		}
+
+		var resultado any
+		switch req.Method {
+		case METODO_TRIGGER_GET:
+			resultado = triggersRetornados
+		case METODO_APIINFO_VERSION:
+			resultado = versao
+		default:
+			http.Error(w, "metodo nao suportado", http.StatusNotFound)
+			return
+		}
+
+		bytesResultado, _ := json.Marshal(resultado)
+		resposta := apiResp{Result: bytesResultado}
+		bytesResposta, _ := json.Marshal(resposta)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(bytesResposta)
+	}))
+}
+
+// servidorZabbixFake500 sempre retorna HTTP 500.
+func servidorZabbixFake500(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
 }

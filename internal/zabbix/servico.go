@@ -1,7 +1,7 @@
 // internal/zabbix/servico.go
 //
-// Orquestração: busca em todas as instâncias em paralelo, consolida em cache
-// protegido por mutex. Thread-safe.
+// Orquestração: busca em todas as instâncias em paralelo, consolida em
+// cache protegido por mutex. Thread-safe.
 
 package zabbix
 
@@ -15,6 +15,26 @@ import (
 
 	"SignalHub/internal/config"
 )
+
+// ----- Constantes -----
+
+const (
+	METODO_TRIGGER_GET     = "trigger.get"
+	METODO_APIINFO_VERSION = "apiinfo.version"
+	LIMITE_TRIGGERS        = 500
+	SOURCE_API_ZABBIX      = "zabbix_api"
+)
+
+var ROTULOS_PRIORIDADE = map[string]string{
+	"0": "Not classified",
+	"1": "Information",
+	"2": "Warning",
+	"3": "Average",
+	"4": "High",
+	"5": "Disaster",
+}
+
+// ----- Tipo Servico -----
 
 // Servico encapsula instâncias configuradas + cache em memória.
 type Servico struct {
@@ -39,30 +59,7 @@ func NovoServico(instancias []config.InstanciaZabbix, httpCliente *http.Client) 
 	}
 }
 
-// Configurado retorna true quando há pelo menos uma instância configurada.
-func (s *Servico) Configurado() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.instancias) > 0
-}
-
-// CarregarCache devolve uma cópia do cache + falhas do último refresh.
-func (s *Servico) CarregarCache() ([]Problema, []string, map[string]string) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	problemas := make([]Problema, len(s.cache))
-	copy(problemas, s.cache)
-
-	falhas := make([]string, len(s.ultimasFalhas))
-	copy(falhas, s.ultimasFalhas)
-
-	versoes := make(map[string]string, len(s.versoes))
-	for k, v := range s.versoes {
-		versoes[k] = v
-	}
-	return problemas, falhas, versoes
-}
+// ----- API pública -----
 
 // AtualizarERetornar força um refresh síncrono e devolve o resultado completo.
 func (s *Servico) AtualizarERetornar() (ResultadoRefresh, error) {
@@ -83,34 +80,71 @@ func (s *Servico) AtualizarERetornar() (ResultadoRefresh, error) {
 	}, nil
 }
 
+// CarregarCache devolve uma cópia do cache + falhas + versões do último refresh.
+func (s *Servico) CarregarCache() ([]Problema, []string, map[string]string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	problemas := make([]Problema, len(s.cache))
+	copy(problemas, s.cache)
+
+	falhas := make([]string, len(s.ultimasFalhas))
+	copy(falhas, s.ultimasFalhas)
+
+	versoes := make(map[string]string, len(s.versoes))
+	for k, v := range s.versoes {
+		versoes[k] = v
+	}
+	return problemas, falhas, versoes
+}
+
+// Configurado retorna true quando há pelo menos uma instância configurada.
+func (s *Servico) Configurado() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.instancias) > 0
+}
+
 // ----- Lógica interna -----
 
 // atualizar busca dados de todas as instâncias em paralelo e atualiza o cache.
 // Retorna as URLs das instâncias que falharam.
 func (s *Servico) atualizar() ([]string, error) {
-	s.mu.RLock()
-	instancias := make([]config.InstanciaZabbix, len(s.instancias))
-	copy(instancias, s.instancias)
-	s.mu.RUnlock()
-
+	instancias := s.copiarInstancias()
 	if len(instancias) == 0 {
 		return nil, nil
 	}
 
-	type resultado struct {
-		problemas []Problema
-		versao    string
-		nome      string
-		url       string
-		erro      error
+	canal := dispararBuscas(s, instancias)
+	todos, novoVersoes, falhas := coletarResultados(canal, len(instancias))
+
+	if len(todos) == 0 && len(falhas) > 0 {
+		return falhas, fmt.Errorf("todas as instâncias Zabbix falharam (%d)", len(falhas))
+	}
+	if falhas == nil {
+		falhas = []string{}
 	}
 
-	canal := make(chan resultado, len(instancias))
+	s.gravarCache(todos, falhas, novoVersoes)
+	return falhas, nil
+}
+
+// resultadoBusca agrega o retorno de uma instância para o coletor.
+type resultadoBusca struct {
+	problemas []Problema
+	versao    string
+	nome      string
+	url       string
+	erro      error
+}
+
+func dispararBuscas(s *Servico, instancias []config.InstanciaZabbix) <-chan resultadoBusca {
+	canal := make(chan resultadoBusca, len(instancias))
 	for _, inst := range instancias {
 		inst := inst
 		go func() {
 			problemas, versao, erro := s.buscarDaInstancia(inst)
-			canal <- resultado{
+			canal <- resultadoBusca{
 				problemas: problemas,
 				versao:    versao,
 				nome:      inst.Nome,
@@ -119,12 +153,15 @@ func (s *Servico) atualizar() ([]string, error) {
 			}
 		}()
 	}
+	return canal
+}
 
+func coletarResultados(canal <-chan resultadoBusca, total int) ([]Problema, map[string]string, []string) {
 	var todos []Problema
 	novoVersoes := map[string]string{}
 	var falhas []string
 
-	for range instancias {
+	for i := 0; i < total; i++ {
 		r := <-canal
 		if r.erro != nil {
 			falhas = append(falhas, r.url)
@@ -136,21 +173,7 @@ func (s *Servico) atualizar() ([]string, error) {
 			novoVersoes[r.nome] = r.versao
 		}
 	}
-
-	if len(todos) == 0 && len(falhas) > 0 {
-		return falhas, fmt.Errorf("todas as instâncias Zabbix falharam (%d)", len(falhas))
-	}
-	if falhas == nil {
-		falhas = []string{}
-	}
-
-	s.mu.Lock()
-	s.cache = todos
-	s.ultimasFalhas = falhas
-	s.versoes = novoVersoes
-	s.mu.Unlock()
-
-	return falhas, nil
+	return todos, novoVersoes, falhas
 }
 
 // buscarDaInstancia faz trigger.get + apiinfo.version em paralelo para uma instância.
@@ -162,36 +185,22 @@ func (s *Servico) buscarDaInstancia(inst config.InstanciaZabbix) ([]Problema, st
 		return nil, "", fmt.Errorf("api_key não informada")
 	}
 
-	type resultado struct {
+	type resultadoParcial struct {
 		triggers []triggerRaw
 		versao   string
 		erro     error
 		qual     int
 	}
-	canal := make(chan resultado, 2)
+	canal := make(chan resultadoParcial, 2)
 
 	go func() {
-		var triggers []triggerRaw
-		erro := chamarApiAdaptado(s.httpClient, inst.URL, inst.APIKey, "trigger.get", map[string]any{
-			"output":            []string{"triggerid", "description", "priority", "lastchange", "comments", "url", "opdata"},
-			"selectHosts":       []string{"hostid", "host", "name"},
-			"selectGroups":      []string{"groupid", "name"},
-			"selectTags":        "extend",
-			"expandDescription": true,
-			"expandComment":     true,
-			"monitored":         true,
-			"filter":            map[string]any{"value": 1},
-			"sortfield":         "lastchange",
-			"sortorder":         "DESC",
-			"limit":             500,
-		}, &triggers)
-		canal <- resultado{triggers: triggers, erro: erro, qual: 0}
+		triggers, erro := buscarTriggers(s.httpClient, inst)
+		canal <- resultadoParcial{triggers: triggers, erro: erro, qual: 0}
 	}()
 
 	go func() {
-		var versao string
-		_ = chamarApiLegado(s.httpClient, inst.URL, "", "apiinfo.version", map[string]any{}, &versao)
-		canal <- resultado{versao: versao, qual: 1}
+		versao := buscarVersao(s.httpClient, inst.URL)
+		canal <- resultadoParcial{versao: versao, qual: 1}
 	}()
 
 	var triggers []triggerRaw
@@ -212,55 +221,95 @@ func (s *Servico) buscarDaInstancia(inst config.InstanciaZabbix) ([]Problema, st
 	return converterTriggers(triggers, inst.Nome), versao, nil
 }
 
+func buscarTriggers(cli *http.Client, inst config.InstanciaZabbix) ([]triggerRaw, error) {
+	var triggers []triggerRaw
+	erro := chamarApiAdaptado(cli, inst.URL, inst.APIKey, METODO_TRIGGER_GET, parametrosTriggers(), &triggers)
+	return triggers, erro
+}
+
+func buscarVersao(cli *http.Client, url string) string {
+	var versao string
+	_ = chamarApiLegado(cli, url, "", METODO_APIINFO_VERSION, map[string]any{}, &versao)
+	return versao
+}
+
+func parametrosTriggers() map[string]any {
+	return map[string]any{
+		"output":            []string{"triggerid", "description", "priority", "lastchange", "comments", "url", "opdata"},
+		"selectHosts":       []string{"hostid", "host", "name"},
+		"selectGroups":      []string{"groupid", "name"},
+		"selectTags":        "extend",
+		"expandDescription": true,
+		"expandComment":     true,
+		"monitored":         true,
+		"filter":            map[string]any{"value": 1},
+		"sortfield":         "lastchange",
+		"sortorder":         "DESC",
+		"limit":             LIMITE_TRIGGERS,
+	}
+}
+
 // converterTriggers transforma o formato bruto da API em []Problema.
 func converterTriggers(triggers []triggerRaw, nomeInstancia string) []Problema {
 	problemas := make([]Problema, 0, len(triggers))
-
 	for _, t := range triggers {
-		problema := Problema{
-			Evento:    t.Description,
-			Mensagem:  t.Description,
-			PrioLabel: prioridadeParaRotulo(t.Priority.String()),
-			Horario:   clockParaRFC3339(t.LastChange.String()),
-			Source:    "zabbix_api",
-			Instancia: nomeInstancia,
-			URL:       t.URL,
-		}
-
-		if len(t.Hosts) > 0 {
-			problema.Host = t.Hosts[0].Name
-			for _, h := range t.Hosts {
-				problema.Hosts = append(problema.Hosts, h.Name)
-			}
-		}
-		if len(t.Groups) > 0 {
-			problema.Grupo = t.Groups[0].Name
-			for _, g := range t.Groups {
-				problema.Grupos = append(problema.Grupos, g.Name)
-			}
-		}
-		for _, tag := range t.Tags {
-			problema.Tags = append(problema.Tags, ProblemaTag{Tag: tag.Tag, Value: tag.Value})
-		}
-		problemas = append(problemas, problema)
+		problemas = append(problemas, converterTrigger(t, nomeInstancia))
 	}
 	return problemas
 }
 
+func converterTrigger(t triggerRaw, nomeInstancia string) Problema {
+	problema := Problema{
+		Evento:    t.Description,
+		Mensagem:  t.Description,
+		PrioLabel: prioridadeParaRotulo(t.Priority.String()),
+		Horario:   clockParaRFC3339(t.LastChange.String()),
+		Source:    SOURCE_API_ZABBIX,
+		Instancia: nomeInstancia,
+		URL:       t.URL,
+	}
+
+	if len(t.Hosts) > 0 {
+		problema.Host = t.Hosts[0].Name
+		for _, h := range t.Hosts {
+			problema.Hosts = append(problema.Hosts, h.Name)
+		}
+	}
+	if len(t.Groups) > 0 {
+		problema.Grupo = t.Groups[0].Name
+		for _, g := range t.Groups {
+			problema.Grupos = append(problema.Grupos, g.Name)
+		}
+	}
+	for _, tag := range t.Tags {
+		problema.Tags = append(problema.Tags, ProblemaTag{Tag: tag.Tag, Value: tag.Value})
+	}
+	return problema
+}
+
+// ----- Helpers de cache -----
+
+func (s *Servico) copiarInstancias() []config.InstanciaZabbix {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	instancias := make([]config.InstanciaZabbix, len(s.instancias))
+	copy(instancias, s.instancias)
+	return instancias
+}
+
+func (s *Servico) gravarCache(problemas []Problema, falhas []string, versoes map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cache = problemas
+	s.ultimasFalhas = falhas
+	s.versoes = versoes
+}
+
+// ----- Conversores -----
+
 func prioridadeParaRotulo(p string) string {
-	switch p {
-	case "0":
-		return "Not classified"
-	case "1":
-		return "Information"
-	case "2":
-		return "Warning"
-	case "3":
-		return "Average"
-	case "4":
-		return "High"
-	case "5":
-		return "Disaster"
+	if rotulo, ok := ROTULOS_PRIORIDADE[p]; ok {
+		return rotulo
 	}
 	return ""
 }

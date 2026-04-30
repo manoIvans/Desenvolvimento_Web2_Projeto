@@ -1,0 +1,169 @@
+/* ----- Reset minimo ----- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* ----- Cabecalho ----- */
+
+.cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+.logotipo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  color: var(--texto);
+}
+
+.logotipo-bola {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--destaque);
+  box-shadow: 0 0 6px var(--destaque);
+}
+
+.cabecalho-info {
+  font-size: .85rem;
+  color: var(--apagado);
+}
+
+.cabecalho-acoes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.botao-atualizar {
+  background: var(--superficie);
+  color: var(--texto);
+  border: 1px solid var(--borda);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.botao-atualizar:hover {
+  color: var(--destaque);
+  border-color: var(--destaque);
+}
+
+.botao-atualizar:disabled {
+  opacity: .55;
+  cursor: progress;
+}
+
+
+/* ----- Navegacao ----- */
+
+.navegacao {
+  display: flex;
+  gap: 4px;
+  padding: 0 22px;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
+
+.aba {
+  background: transparent;
+  border: 0;
+  padding: 12px 18px;
+  font-size: .95rem;
+  cursor: pointer;
+  color: var(--apagado);
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+
+.aba:hover {
+  color: var(--texto);
+}
+
+.aba.ativa {
+  color: var(--destaque);
+  border-bottom-color: var(--destaque);
+}
+
+
+/* ----- Conteudo / Secoes ----- */
+
+.conteudo {
+  flex: 1;
+  padding: 22px;
+  background: var(--fundo);
+}
+
+.secao-cabecalho {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.secao-cabecalho h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--texto);
+}
+
+.contador {
+  font-size: .85rem;
+  color: var(--apagado);
+}
+
+.escondida {
+  display: none;
+}
+
+.grade-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 14px;
+}
+
+.vazio {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--apagado);
+  border: 1px dashed var(--borda);
+  border-radius: 8px;
+}
+
+
+/* ----- Rodape ----- */
+
+.rodape {
+  text-align: center;
+  padding: 14px;
+  font-size: .8rem;
+  color: var(--apagado);
+  border-top: 1px solid var(--borda);
+  background: var(--superficie);
+}

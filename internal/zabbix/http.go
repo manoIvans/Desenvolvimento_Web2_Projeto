@@ -11,6 +11,15 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// ----- Constantes -----
+
+const (
+	ROTA_LISTAR  = "/zabbix"
+	ROTA_REFRESH = "/zabbix/refresh"
+)
+
+// ----- Tipo Handler -----
+
 // Handler expõe os endpoints Zabbix usando um Servico injetado.
 type Handler struct {
 	servico *Servico
@@ -23,8 +32,8 @@ func NovoHandler(servico *Servico) *Handler {
 
 // Rotas registra /zabbix e /zabbix/refresh.
 func (h *Handler) Rotas(r chi.Router) {
-	r.Get("/zabbix", h.listar)
-	r.Post("/zabbix/refresh", h.refresh)
+	r.Get(ROTA_LISTAR, h.listar)
+	r.Post(ROTA_REFRESH, h.refresh)
 }
 
 // ----- Endpoints -----

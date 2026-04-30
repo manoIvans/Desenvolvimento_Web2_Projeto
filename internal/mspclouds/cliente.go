@@ -15,10 +15,15 @@ import (
 	"time"
 )
 
+// ----- Constantes -----
+
 const (
 	URL_BASE_PADRAO = "https://mspclouds.com"
 	TIMEOUT_HTTP    = 15 * time.Second
+	ROTA_ALERTAS    = "/api/v1/alerts"
 )
+
+// ----- Cliente compartilhado -----
 
 // httpClientPadrao é compartilhado entre chamadas.
 var httpClientPadrao = &http.Client{
@@ -28,13 +33,17 @@ var httpClientPadrao = &http.Client{
 	},
 }
 
+// ----- Tipos -----
+
 // Alerta é um alerta retornado pela API MSP Clouds no formato bruto.
 // Usamos map[string]any para passar-through os campos ao frontend.
 type Alerta = map[string]any
 
+// ----- API interna -----
+
 // buscarAlertas chama GET /api/v1/alerts?api_key=... e devolve a lista.
 func buscarAlertas(cli *http.Client, baseURL, apiKey string) ([]Alerta, error) {
-	url := fmt.Sprintf("%s/api/v1/alerts?api_key=%s", baseURL, apiKey)
+	url := fmt.Sprintf("%s%s?api_key=%s", baseURL, ROTA_ALERTAS, apiKey)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {

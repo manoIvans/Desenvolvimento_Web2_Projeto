@@ -1,7 +1,7 @@
 // internal/config/config.go
 //
-// Leitura do configuracoes.json (instâncias Zabbix e MSP Clouds).
-// Sprint 1: só JSON em disco. Sprint 2 moverá as instâncias para Postgres.
+// Leitura do configuracoes.json. Resolve o caminho do arquivo ao lado do
+// executável (ou no CWD quando rodando via "go run") e devolve a Config.
 
 package config
 
@@ -13,7 +13,11 @@ import (
 	"strings"
 )
 
+// ----- Constantes -----
+
 const NOME_ARQUIVO_CONFIG = "configuracoes.json"
+
+const PASTA_GO_BUILD = "go-build"
 
 // ----- Tipos -----
 
@@ -31,7 +35,7 @@ type Config struct {
 	PortaWeb         string            `json:"porta_web,omitempty"`
 }
 
-// ----- Leitura -----
+// ----- API pública -----
 
 // Ler tenta carregar o configuracoes.json do diretório do executável
 // (ou CWD quando rodando via "go run"). Retorna Config vazia se o arquivo
@@ -43,10 +47,10 @@ func Ler() (Config, error) {
 	}
 
 	dados, err := os.ReadFile(caminho)
+	if os.IsNotExist(err) {
+		return Config{}, nil
+	}
 	if err != nil {
-		if os.IsNotExist(err) {
-			return Config{}, nil
-		}
 		return Config{}, fmt.Errorf("ler %s: %w", caminho, err)
 	}
 
@@ -57,7 +61,7 @@ func Ler() (Config, error) {
 	return cfg, nil
 }
 
-// ----- Resolução de caminho -----
+// ----- Internos -----
 
 // resolverCaminho devolve o caminho absoluto do configuracoes.json —
 // ao lado do executável em produção, ou no CWD quando rodando via "go run".
@@ -68,11 +72,13 @@ func resolverCaminho() (string, error) {
 	}
 	diretorioBase := filepath.Dir(executavel)
 
-	if ehGoRunTemp(diretorioBase) {
-		diretorioBase, err = os.Getwd()
-		if err != nil {
-			return "", err
-		}
+	if !ehGoRunTemp(diretorioBase) {
+		return filepath.Join(diretorioBase, NOME_ARQUIVO_CONFIG), nil
+	}
+
+	diretorioBase, err = os.Getwd()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(diretorioBase, NOME_ARQUIVO_CONFIG), nil
 }
@@ -82,5 +88,5 @@ func ehGoRunTemp(dir string) bool {
 	if tmp := os.TempDir(); tmp != "" && strings.HasPrefix(dir, tmp) {
 		return true
 	}
-	return strings.Contains(dir, string(filepath.Separator)+"go-build")
+	return strings.Contains(dir, string(filepath.Separator)+PASTA_GO_BUILD)
 }

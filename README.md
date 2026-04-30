@@ -101,13 +101,13 @@ reais pro repositório**. O `configuracoes.exemplo.json` serve de referência.
 
 ```bash
 # Rodar a API (usa ":8080" por padrão; pode ser sobrescrito via SIGNALHUB_ENDERECO)
-go run ./cmd/api
+go run .
 
 # Testes (sem rede — APIs externas são mockadas via httptest.Server)
 go test ./...
 
 # Build
-go build -o bin/signalhub ./cmd/api
+go build -o bin/signalhub .
 ```
 
 Exemplo de uso (após `go run`):
@@ -131,7 +131,7 @@ curl http://localhost:8080/mspclouds
 
 ```
 signalhub/
-├── cmd/api/main.go                 # entrypoint (config, logger, shutdown)
+├── main.go                         # entrypoint (config, logger, shutdown)
 ├── configuracoes.exemplo.json      # template (versionado)
 ├── configuracoes.json              # credenciais reais (git-ignored)
 ├── go.mod
@@ -169,7 +169,7 @@ Cada domínio (`zabbix`, `mspclouds`) expõe um `Servico` com:
 
 O roteador Chi é montado em `internal/servidor/servidor.go`, recebendo as
 dependências (handlers) via struct `Dependencias`. O entrypoint em
-`cmd/api/main.go` lê o JSON, instancia os serviços e injeta tudo.
+`main.go` (raiz) lê o JSON, instancia os serviços e injeta tudo.
 
 ## Roadmap
 

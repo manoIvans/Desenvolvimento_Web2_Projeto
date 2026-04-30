@@ -12,6 +12,15 @@ import (
 	"sync"
 )
 
+// ----- Constantes -----
+
+const (
+	TAMANHO_MIN_CHAVE_VISIVEL  = 6
+	REPRESENTACAO_CHAVE_OCULTA = "…"
+)
+
+// ----- Tipos -----
+
 // ResultadoRefresh é o que o endpoint /mspclouds/refresh devolve.
 type ResultadoRefresh struct {
 	Data   []Alerta `json:"data"`
@@ -44,25 +53,7 @@ func NovoServico(chavesApi []string, baseURL string, httpCliente *http.Client) *
 	}
 }
 
-// Configurado retorna true quando há ao menos uma api_key configurada.
-func (s *Servico) Configurado() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.chavesApi) > 0
-}
-
-// CarregarCache devolve uma cópia do cache + falhas do último refresh.
-func (s *Servico) CarregarCache() ([]Alerta, []string) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	alertas := make([]Alerta, len(s.cache))
-	copy(alertas, s.cache)
-
-	falhas := make([]string, len(s.ultimasFalhas))
-	copy(falhas, s.ultimasFalhas)
-	return alertas, falhas
-}
+// ----- API pública -----
 
 // AtualizarERetornar força refresh síncrono e devolve o resultado.
 func (s *Servico) AtualizarERetornar() (ResultadoRefresh, error) {
@@ -79,46 +70,36 @@ func (s *Servico) AtualizarERetornar() (ResultadoRefresh, error) {
 	return ResultadoRefresh{Data: alertas, Falhas: falhas}, nil
 }
 
+// CarregarCache devolve uma cópia do cache + falhas do último refresh.
+func (s *Servico) CarregarCache() ([]Alerta, []string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	alertas := make([]Alerta, len(s.cache))
+	copy(alertas, s.cache)
+
+	falhas := make([]string, len(s.ultimasFalhas))
+	copy(falhas, s.ultimasFalhas)
+	return alertas, falhas
+}
+
+// Configurado retorna true quando há ao menos uma api_key configurada.
+func (s *Servico) Configurado() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.chavesApi) > 0
+}
+
 // ----- Lógica interna -----
 
 func (s *Servico) atualizar() ([]string, error) {
-	s.mu.RLock()
-	chaves := make([]string, len(s.chavesApi))
-	copy(chaves, s.chavesApi)
-	baseURL := s.baseURL
-	s.mu.RUnlock()
-
+	chaves, baseURL := s.copiarConfig()
 	if len(chaves) == 0 {
 		return nil, nil
 	}
 
-	type resultado struct {
-		alertas []Alerta
-		chave   string
-		erro    error
-	}
-
-	canal := make(chan resultado, len(chaves))
-	for _, chave := range chaves {
-		chave := chave
-		go func() {
-			alertas, erro := buscarAlertas(s.httpClient, baseURL, chave)
-			canal <- resultado{alertas: alertas, chave: chave, erro: erro}
-		}()
-	}
-
-	var todos []Alerta
-	var falhas []string
-
-	for range chaves {
-		r := <-canal
-		if r.erro != nil {
-			falhas = append(falhas, mascararChave(r.chave))
-			slog.Warn("instância MSP falhou", "chave", mascararChave(r.chave), "erro", r.erro)
-			continue
-		}
-		todos = append(todos, r.alertas...)
-	}
+	canal := dispararBuscas(s.httpClient, baseURL, chaves)
+	todos, falhas := coletarResultados(canal, len(chaves))
 
 	if len(todos) == 0 && len(falhas) > 0 {
 		return falhas, fmt.Errorf("todas as instâncias MSP falharam (%d)", len(falhas))
@@ -127,18 +108,68 @@ func (s *Servico) atualizar() ([]string, error) {
 		falhas = []string{}
 	}
 
-	s.mu.Lock()
-	s.cache = todos
-	s.ultimasFalhas = falhas
-	s.mu.Unlock()
-
+	s.gravarCache(todos, falhas)
 	return falhas, nil
 }
 
+// resultadoBusca agrega o retorno de uma chave MSP para o coletor.
+type resultadoBusca struct {
+	alertas []Alerta
+	chave   string
+	erro    error
+}
+
+func dispararBuscas(cli *http.Client, baseURL string, chaves []string) <-chan resultadoBusca {
+	canal := make(chan resultadoBusca, len(chaves))
+	for _, chave := range chaves {
+		chave := chave
+		go func() {
+			alertas, erro := buscarAlertas(cli, baseURL, chave)
+			canal <- resultadoBusca{alertas: alertas, chave: chave, erro: erro}
+		}()
+	}
+	return canal
+}
+
+func coletarResultados(canal <-chan resultadoBusca, total int) ([]Alerta, []string) {
+	var todos []Alerta
+	var falhas []string
+
+	for i := 0; i < total; i++ {
+		r := <-canal
+		if r.erro != nil {
+			falhas = append(falhas, mascararChave(r.chave))
+			slog.Warn("instância MSP falhou", "chave", mascararChave(r.chave), "erro", r.erro)
+			continue
+		}
+		todos = append(todos, r.alertas...)
+	}
+	return todos, falhas
+}
+
+// ----- Helpers de cache -----
+
+func (s *Servico) copiarConfig() ([]string, string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	chaves := make([]string, len(s.chavesApi))
+	copy(chaves, s.chavesApi)
+	return chaves, s.baseURL
+}
+
+func (s *Servico) gravarCache(alertas []Alerta, falhas []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cache = alertas
+	s.ultimasFalhas = falhas
+}
+
+// ----- Utilitários -----
+
 // mascararChave evita expor a api_key completa em logs/respostas.
 func mascararChave(chave string) string {
-	if len(chave) <= 6 {
-		return "…"
+	if len(chave) <= TAMANHO_MIN_CHAVE_VISIVEL {
+		return REPRESENTACAO_CHAVE_OCULTA
 	}
-	return chave[:6] + "…"
+	return chave[:TAMANHO_MIN_CHAVE_VISIVEL] + REPRESENTACAO_CHAVE_OCULTA
 }

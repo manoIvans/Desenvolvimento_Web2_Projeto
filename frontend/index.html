@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SignalHub — Painel de Alertas</title>
+
+  <link rel="stylesheet" href="nucleo/base.css" />
+  <link rel="stylesheet" href="nucleo/tema.css" />
+  <link rel="stylesheet" href="componentes/card.css" />
+  <link rel="stylesheet" href="zabbix/css/zabbix.css" />
+  <link rel="stylesheet" href="mspcloud/css/mspcloud.css" />
+</head>
+<body>
+
+  <header class="cabecalho">
+    <div class="logotipo">
+      <span class="logotipo-bola"></span>
+      SignalHub
+    </div>
+    <div class="cabecalho-acoes">
+      <button class="botao-atualizar" id="botaoAtualizar">⟳ atualizar</button>
+      <span class="cabecalho-info" id="ultimaAtualizacao">—</span>
+    </div>
+  </header>
+
+  <nav class="navegacao">
+    <button class="aba ativa" data-secao="zabbix">🛡️ Zabbix</button>
+    <button class="aba"        data-secao="mspcloud">☁️ MSP Clouds</button>
+  </nav>
+
+  <main class="conteudo">
+
+    <section id="secao-zabbix" class="secao">
+      <div class="secao-cabecalho">
+        <h2>Problemas Zabbix</h2>
+        <span class="contador" id="contadorZabbix">0 problemas</span>
+      </div>
+      <div class="grade-cards" id="cardsZabbix"></div>
+    </section>
+
+    <section id="secao-mspcloud" class="secao escondida">
+      <div class="secao-cabecalho">
+        <h2>Alertas MSP Clouds</h2>
+        <span class="contador" id="contadorMspCloud">0 alertas</span>
+      </div>
+      <div class="grade-cards" id="cardsMspCloud"></div>
+    </section>
+
+  </main>
+
+  <footer class="rodape">SignalHub — Desenvolvimento Web II / UFRN</footer>
+
+  <!-- Núcleo (api + orquestrador) -->
+  <script src="nucleo/api.js"                defer></script>
+  <script src="zabbix/scripts/zabbix.js"     defer></script>
+  <script src="mspcloud/scripts/mspcloud.js" defer></script>
+  <script src="nucleo/nucleo.js"             defer></script>
+
+</body>
+</html>

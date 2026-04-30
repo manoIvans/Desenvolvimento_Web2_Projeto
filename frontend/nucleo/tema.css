@@ -1,0 +1,19 @@
+/* ----- Tema (tokens de cor) ----- */
+
+:root {
+  --fundo:      #f7f7fa;
+  --superficie: #ffffff;
+  --borda:      #d8d8e0;
+  --texto:      #1c1c24;
+  --apagado:    #6b6b7a;
+  --destaque:   #0061f2;
+
+  --gravidade-desastre: #d32f2f;
+  --gravidade-alto:     #f57c00;
+  --gravidade-atencao:  #fbc02d;
+  --gravidade-info:     #1976d2;
+
+  --tipo-msp-backup:    #6a1b9a;
+  --tipo-msp-rede:      #00796b;
+  --tipo-msp-sistema:   #c62828;
+}

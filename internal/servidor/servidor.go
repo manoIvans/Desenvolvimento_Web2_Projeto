@@ -17,46 +17,31 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"SignalHub/internal/frontend"
 	"SignalHub/internal/mspclouds"
 	"SignalHub/internal/saude"
 	"SignalHub/internal/zabbix"
 )
 
-const TIMEOUT_SHUTDOWN = 15 * time.Second
+// ----- Constantes -----
+
+const (
+	TIMEOUT_SHUTDOWN    = 15 * time.Second
+	TIMEOUT_READ_HEADER = 10 * time.Second
+	CORS_MAX_AGE        = 300
+)
+
+var CORS_METODOS_PERMITIDOS = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+var CORS_HEADERS_PERMITIDOS = []string{"Content-Type", "Authorization"}
+var CORS_ORIGENS_PERMITIDAS = []string{"*"}
+
+// ----- Tipos -----
 
 // Dependencias agrupa os handlers injetados no servidor.
 type Dependencias struct {
 	HandlerZabbix *zabbix.Handler
 	HandlerMsp    *mspclouds.Handler
 }
-
-// ----- Router -----
-
-// MontarRouter constrói o *chi.Mux com middlewares e rotas de todos os domínios.
-// Exportado para permitir testes via httptest sem subir servidor TCP.
-func MontarRouter(deps Dependencias) http.Handler {
-	r := chi.NewRouter()
-
-	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
-	r.Use(chimw.Logger)
-	r.Use(chimw.Recoverer)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},
-		AllowCredentials: false,
-		MaxAge:           300,
-	}))
-
-	saude.Rotas(r)
-	deps.HandlerZabbix.Rotas(r)
-	deps.HandlerMsp.Rotas(r)
-
-	return r
-}
-
-// ----- Servidor -----
 
 // Servidor encapsula o *http.Server com métodos Iniciar/Parar thread-safe.
 type Servidor struct {
@@ -74,6 +59,40 @@ func Novo(endereco string, handler http.Handler) *Servidor {
 	}
 }
 
+// ----- Router -----
+
+// MontarRouter constrói o *chi.Mux com middlewares e rotas de todos os domínios.
+// Exportado para permitir testes via httptest sem subir servidor TCP.
+func MontarRouter(deps Dependencias) http.Handler {
+	r := chi.NewRouter()
+	registrarMiddlewares(r)
+	registrarRotas(r, deps)
+	return r
+}
+
+func registrarMiddlewares(r chi.Router) {
+	r.Use(chimw.RequestID)
+	r.Use(chimw.RealIP)
+	r.Use(chimw.Logger)
+	r.Use(chimw.Recoverer)
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   CORS_ORIGENS_PERMITIDAS,
+		AllowedMethods:   CORS_METODOS_PERMITIDOS,
+		AllowedHeaders:   CORS_HEADERS_PERMITIDOS,
+		AllowCredentials: false,
+		MaxAge:           CORS_MAX_AGE,
+	}))
+}
+
+func registrarRotas(r chi.Router, deps Dependencias) {
+	saude.Rotas(r)
+	deps.HandlerZabbix.Rotas(r)
+	deps.HandlerMsp.Rotas(r)
+	frontend.Rotas(r)
+}
+
+// ----- Ciclo de vida -----
+
 // Iniciar sobe o HTTP server e bloqueia até Parar ou erro fatal.
 // Retorna nil em shutdown limpo.
 func (s *Servidor) Iniciar() error {
@@ -81,7 +100,7 @@ func (s *Servidor) Iniciar() error {
 	s.httpServer = &http.Server{
 		Addr:              s.endereco,
 		Handler:           s.handler,
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadHeaderTimeout: TIMEOUT_READ_HEADER,
 	}
 	s.mu.Unlock()
 

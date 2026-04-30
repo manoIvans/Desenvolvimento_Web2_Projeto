@@ -1,6 +1,7 @@
 // internal/zabbix/tipos.go
 //
-// Tipos de saída (frontend) e tipos internos da API JSON-RPC Zabbix.
+// Tipos de saída (consumidos pelo frontend) e tipos internos da API
+// JSON-RPC Zabbix.
 
 package zabbix
 
@@ -31,8 +32,8 @@ type Problema struct {
 	Tags      []ProblemaTag `json:"tags,omitempty"`
 }
 
-// ResultadoRefresh é o que o endpoint /zabbix/refresh devolve: dados + falhas
-// por instância + versões reportadas.
+// ResultadoRefresh é o que o endpoint /zabbix/refresh devolve: dados +
+// falhas por instância + versões reportadas.
 type ResultadoRefresh struct {
 	Data    []Problema        `json:"data"`
 	Falhas  []string          `json:"falhas,omitempty"`
