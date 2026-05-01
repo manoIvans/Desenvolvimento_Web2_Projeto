@@ -99,6 +99,45 @@ func TestRefreshMspParcialMantemUmaInstancia(t *testing.T) {
 	}
 }
 
+// ----- Modo demo -----
+
+func TestModoDemoMspConfiguraServicoMesmoSemChaves(t *testing.T) {
+	svc := NovoServico(nil, "", nil)
+
+	if svc.Configurado() {
+		t.Fatal("pré-condição falhou: Configurado() deveria ser false antes do modo demo")
+	}
+
+	svc.AtivarModoDemo(MocksDemonstracao())
+
+	if !svc.Configurado() {
+		t.Error("Configurado() deveria ser true após AtivarModoDemo")
+	}
+}
+
+func TestModoDemoMspRefreshDevolveMocksSemErro(t *testing.T) {
+	svc := NovoServico(nil, "", nil)
+	svc.AtivarModoDemo(MocksDemonstracao())
+
+	resultado, err := svc.AtualizarERetornar()
+	if err != nil {
+		t.Fatalf("refresh em modo demo não deveria falhar: %v", err)
+	}
+	if len(resultado.Data) == 0 {
+		t.Error("refresh em modo demo deveria devolver mocks no campo Data")
+	}
+}
+
+func TestModoDemoMspCachePopuladoNoCarregar(t *testing.T) {
+	svc := NovoServico(nil, "", nil)
+	svc.AtivarModoDemo(MocksDemonstracao())
+
+	alertas, _ := svc.CarregarCache()
+	if len(alertas) == 0 {
+		t.Error("CarregarCache deveria devolver mocks após AtivarModoDemo")
+	}
+}
+
 // ----- Utilitários -----
 
 func TestMascararChave(t *testing.T) {

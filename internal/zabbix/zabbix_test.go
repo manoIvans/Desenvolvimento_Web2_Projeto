@@ -157,6 +157,48 @@ func TestCarregarCacheVazioAntesDoRefresh(t *testing.T) {
 	}
 }
 
+// ----- Modo demo -----
+
+func TestModoDemoConfiguraServicoMesmoSemInstancias(t *testing.T) {
+	svc := NovoServico(nil, nil)
+
+	if svc.Configurado() {
+		t.Fatal("pré-condição falhou: Configurado() deveria ser false antes do modo demo")
+	}
+
+	svc.AtivarModoDemo(MocksDemonstracao())
+
+	if !svc.Configurado() {
+		t.Error("Configurado() deveria ser true após AtivarModoDemo")
+	}
+}
+
+func TestModoDemoRefreshDevolveMocksSemErro(t *testing.T) {
+	svc := NovoServico(nil, nil)
+	svc.AtivarModoDemo(MocksDemonstracao())
+
+	resultado, err := svc.AtualizarERetornar()
+	if err != nil {
+		t.Fatalf("refresh em modo demo não deveria falhar: %v", err)
+	}
+	if len(resultado.Data) == 0 {
+		t.Error("refresh em modo demo deveria devolver mocks no campo Data")
+	}
+	if resultado.Versoes[NOME_INSTANCIA_DEMO] != VERSAO_DEMO {
+		t.Errorf("versão demo esperada %q, obtida %q", VERSAO_DEMO, resultado.Versoes[NOME_INSTANCIA_DEMO])
+	}
+}
+
+func TestModoDemoCachePopuladoNoCarregar(t *testing.T) {
+	svc := NovoServico(nil, nil)
+	svc.AtivarModoDemo(MocksDemonstracao())
+
+	problemas, _, _ := svc.CarregarCache()
+	if len(problemas) == 0 {
+		t.Error("CarregarCache deveria devolver mocks após AtivarModoDemo")
+	}
+}
+
 // ----- Conversores -----
 
 func TestPrioridadeParaRotulo(t *testing.T) {

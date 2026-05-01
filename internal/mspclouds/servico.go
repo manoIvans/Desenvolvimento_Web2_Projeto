@@ -35,6 +35,8 @@ type Servico struct {
 	ultimasFalhas []string
 	baseURL       string
 	httpClient    *http.Client
+	modoDemo      bool
+	mocksDemo     []Alerta
 }
 
 // NovoServico constrói o serviço com as api_keys informadas.
@@ -56,7 +58,13 @@ func NovoServico(chavesApi []string, baseURL string, httpCliente *http.Client) *
 // ----- API pública -----
 
 // AtualizarERetornar força refresh síncrono e devolve o resultado.
+// Em modo demo, repõe o cache com os mocks atuais e retorna sucesso —
+// não há api_keys reais para consultar.
 func (s *Servico) AtualizarERetornar() (ResultadoRefresh, error) {
+	if s.emModoDemo() {
+		s.repopularMocks()
+		return s.respostaDoCache(), nil
+	}
 	if !s.Configurado() {
 		return ResultadoRefresh{}, fmt.Errorf("nenhuma api_key MSP Clouds configurada")
 	}
@@ -68,6 +76,18 @@ func (s *Servico) AtualizarERetornar() (ResultadoRefresh, error) {
 
 	alertas, _ := s.CarregarCache()
 	return ResultadoRefresh{Data: alertas, Falhas: falhas}, nil
+}
+
+// AtivarModoDemo popula o cache com mocks e marca o serviço como demo.
+// Configurado() passa a retornar true e AtualizarERetornar() devolve mocks
+// sem fazer chamadas externas.
+func (s *Servico) AtivarModoDemo(mocks []Alerta) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.modoDemo = true
+	s.mocksDemo = mocks
+	s.cache = mocks
+	s.ultimasFalhas = []string{}
 }
 
 // CarregarCache devolve uma cópia do cache + falhas do último refresh.
@@ -83,11 +103,32 @@ func (s *Servico) CarregarCache() ([]Alerta, []string) {
 	return alertas, falhas
 }
 
-// Configurado retorna true quando há ao menos uma api_key configurada.
+// Configurado retorna true quando há ao menos uma api_key configurada
+// ou quando o serviço está em modo demonstração.
 func (s *Servico) Configurado() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return len(s.chavesApi) > 0
+	return len(s.chavesApi) > 0 || s.modoDemo
+}
+
+// ----- Modo demo -----
+
+func (s *Servico) emModoDemo() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.modoDemo
+}
+
+func (s *Servico) repopularMocks() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cache = s.mocksDemo
+	s.ultimasFalhas = []string{}
+}
+
+func (s *Servico) respostaDoCache() ResultadoRefresh {
+	alertas, falhas := s.CarregarCache()
+	return ResultadoRefresh{Data: alertas, Falhas: falhas}
 }
 
 // ----- Lógica interna -----

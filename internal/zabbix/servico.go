@@ -44,6 +44,8 @@ type Servico struct {
 	ultimasFalhas []string
 	versoes       map[string]string
 	httpClient    *http.Client
+	modoDemo      bool
+	mocksDemo     []Problema
 }
 
 // NovoServico constrói o serviço com as instâncias informadas.
@@ -62,7 +64,13 @@ func NovoServico(instancias []config.InstanciaZabbix, httpCliente *http.Client) 
 // ----- API pública -----
 
 // AtualizarERetornar força um refresh síncrono e devolve o resultado completo.
+// Em modo demo, repõe o cache com os mocks atuais e retorna sucesso —
+// não há instâncias reais para consultar.
 func (s *Servico) AtualizarERetornar() (ResultadoRefresh, error) {
+	if s.emModoDemo() {
+		s.repopularMocks()
+		return s.respostaDoCache(), nil
+	}
 	if !s.Configurado() {
 		return ResultadoRefresh{}, fmt.Errorf("nenhuma instância Zabbix configurada")
 	}
@@ -78,6 +86,19 @@ func (s *Servico) AtualizarERetornar() (ResultadoRefresh, error) {
 		Falhas:  falhas,
 		Versoes: versoes,
 	}, nil
+}
+
+// AtivarModoDemo popula o cache com mocks e marca o serviço como demo.
+// Configurado() passa a retornar true e AtualizarERetornar() devolve mocks
+// sem fazer chamadas externas.
+func (s *Servico) AtivarModoDemo(mocks []Problema) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.modoDemo = true
+	s.mocksDemo = mocks
+	s.cache = mocks
+	s.versoes = VersoesDemonstracao()
+	s.ultimasFalhas = []string{}
 }
 
 // CarregarCache devolve uma cópia do cache + falhas + versões do último refresh.
@@ -98,11 +119,33 @@ func (s *Servico) CarregarCache() ([]Problema, []string, map[string]string) {
 	return problemas, falhas, versoes
 }
 
-// Configurado retorna true quando há pelo menos uma instância configurada.
+// Configurado retorna true quando há pelo menos uma instância configurada
+// ou quando o serviço está em modo demonstração.
 func (s *Servico) Configurado() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return len(s.instancias) > 0
+	return len(s.instancias) > 0 || s.modoDemo
+}
+
+// ----- Modo demo -----
+
+func (s *Servico) emModoDemo() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.modoDemo
+}
+
+func (s *Servico) repopularMocks() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cache = s.mocksDemo
+	s.versoes = VersoesDemonstracao()
+	s.ultimasFalhas = []string{}
+}
+
+func (s *Servico) respostaDoCache() ResultadoRefresh {
+	problemas, falhas, versoes := s.CarregarCache()
+	return ResultadoRefresh{Data: problemas, Falhas: falhas, Versoes: versoes}
 }
 
 // ----- Lógica interna -----

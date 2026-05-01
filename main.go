@@ -36,11 +36,15 @@ const TESTANDO = false
 func main() {
 	configurarLogger()
 
-	cfg := lerConfiguracoesOuAbortar()
+	cfg, configEncontrada := lerConfiguracoesOuAbortar()
 	endereco := resolverEndereco(cfg)
 
 	servicoZabbix, servicoMsp := construirServicos(cfg)
-	aquecerCachesIniciais(servicoZabbix, servicoMsp)
+	if configEncontrada {
+		aquecerCachesIniciais(servicoZabbix, servicoMsp)
+	} else {
+		ativarModoDemonstracao(servicoZabbix, servicoMsp)
+	}
 
 	srv := iniciarServidor(endereco, servicoZabbix, servicoMsp)
 	aguardarShutdown(srv, endereco)
@@ -48,17 +52,32 @@ func main() {
 
 // ----- Bootstrap -----
 
-func lerConfiguracoesOuAbortar() config.Config {
-	cfg, err := config.Ler()
+func lerConfiguracoesOuAbortar() (config.Config, bool) {
+	cfg, encontrada, err := config.Ler()
 	if err != nil {
 		slog.Error("erro ao ler configuracoes.json", "erro", err)
 		os.Exit(1)
+	}
+	if !encontrada {
+		slog.Warn("configuracoes.json não encontrado — ativando modo demonstração com mocks")
+		return cfg, false
 	}
 	slog.Info("configuração carregada",
 		"instancias_zabbix", len(cfg.ZabbixInstancias),
 		"instancias_msp", len(cfg.MspInstancias),
 	)
-	return cfg
+	return cfg, true
+}
+
+// ----- Modo demonstração -----
+
+func ativarModoDemonstracao(servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico) {
+	servicoZabbix.AtivarModoDemo(zabbix.MocksDemonstracao())
+	servicoMsp.AtivarModoDemo(mspclouds.MocksDemonstracao())
+	slog.Info("modo demonstração ativo",
+		"problemas_zabbix_mock", len(zabbix.MocksDemonstracao()),
+		"alertas_msp_mock", len(mspclouds.MocksDemonstracao()),
+	)
 }
 
 func resolverEndereco(cfg config.Config) string {

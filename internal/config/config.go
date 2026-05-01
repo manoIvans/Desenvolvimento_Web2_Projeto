@@ -38,27 +38,30 @@ type Config struct {
 // ----- API pública -----
 
 // Ler tenta carregar o configuracoes.json do diretório do executável
-// (ou CWD quando rodando via "go run"). Retorna Config vazia se o arquivo
-// não existir — os handlers devem tolerar listas vazias.
-func Ler() (Config, error) {
+// (ou CWD quando rodando via "go run"). Retorna a Config, um booleano
+// indicando se o arquivo foi encontrado e um erro de parse/IO.
+//
+// Quando o arquivo simplesmente não existe, retorna (Config{}, false, nil)
+// — o entrypoint usa esse sinal para ativar o modo demonstração com mocks.
+func Ler() (Config, bool, error) {
 	caminho, err := resolverCaminho()
 	if err != nil {
-		return Config{}, err
+		return Config{}, false, err
 	}
 
 	dados, err := os.ReadFile(caminho)
 	if os.IsNotExist(err) {
-		return Config{}, nil
+		return Config{}, false, nil
 	}
 	if err != nil {
-		return Config{}, fmt.Errorf("ler %s: %w", caminho, err)
+		return Config{}, false, fmt.Errorf("ler %s: %w", caminho, err)
 	}
 
 	var cfg Config
 	if err := json.Unmarshal(dados, &cfg); err != nil {
-		return Config{}, fmt.Errorf("parse %s: %w", caminho, err)
+		return Config{}, true, fmt.Errorf("parse %s: %w", caminho, err)
 	}
-	return cfg, nil
+	return cfg, true, nil
 }
 
 // ----- Internos -----
