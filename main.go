@@ -14,11 +14,13 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"SignalHub/internal/autenticacao"
 	"SignalHub/internal/banco"
 	"SignalHub/internal/filtros"
 	"SignalHub/internal/instancias"
@@ -34,6 +36,13 @@ const (
 	VAR_AMBIENTE_PORTA = "SIGNALHUB_ENDERECO"
 	TIMEOUT_SHUTDOWN   = 20 * time.Second
 	DIRETORIO_SCHEMA   = "db/schema"
+
+	VAR_AMBIENTE_SENHA_LOGIN  = "SIGNALHUB_SENHA_LOGIN"
+	VAR_AMBIENTE_TOKEN_MESTRE = "SIGNALHUB_TOKEN_MESTRE"
+	VAR_AMBIENTE_TTL_TOKEN    = "SIGNALHUB_TTL_TOKEN_SEGUNDOS"
+	SENHA_LOGIN_PADRAO        = "umasenhacriativa"
+	TOKEN_MESTRE_PADRAO       = "mestre-signalhub-imortal"
+	TTL_TOKEN_PADRAO          = time.Hour
 )
 
 //go:embed db/schema
@@ -48,9 +57,10 @@ func main() {
 	defer bd.Fechar()
 
 	servicoZabbix, servicoMsp := construirServicos(bd)
+	servicoAuth := construirServicoAutenticacao()
 	aquecerCachesIniciais(servicoZabbix, servicoMsp)
 
-	srv := iniciarServidor(resolverEndereco(), bd, servicoZabbix, servicoMsp)
+	srv := iniciarServidor(resolverEndereco(), bd, servicoZabbix, servicoMsp, servicoAuth)
 	aguardarShutdown(srv)
 }
 
@@ -198,12 +208,14 @@ func aquecerMsp(servicoMsp *mspclouds.Servico) {
 
 // ----- Servidor HTTP -----
 
-func iniciarServidor(endereco string, bd *banco.Banco, servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico) *servidor.Servidor {
+func iniciarServidor(endereco string, bd *banco.Banco, servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico, servicoAuth *autenticacao.Servico) *servidor.Servidor {
 	router := servidor.MontarRouter(servidor.Dependencias{
-		HandlerZabbix:     zabbix.NovoHandler(servicoZabbix),
-		HandlerMsp:        mspclouds.NovoHandler(servicoMsp),
-		HandlerInstancias: instancias.NovoHandler(instancias.NovoServico(bd.Consultas)),
-		HandlerFiltros:    filtros.NovoHandler(filtros.NovoServico(bd.Consultas)),
+		HandlerZabbix:       zabbix.NovoHandler(servicoZabbix),
+		HandlerMsp:          mspclouds.NovoHandler(servicoMsp),
+		HandlerInstancias:   instancias.NovoHandler(instancias.NovoServico(bd.Consultas)),
+		HandlerFiltros:      filtros.NovoHandler(filtros.NovoServico(bd.Consultas)),
+		HandlerAutenticacao: autenticacao.NovoHandler(servicoAuth),
+		ServicoAutenticacao: servicoAuth,
 	})
 
 	srv := servidor.Novo(endereco, router)
@@ -214,6 +226,35 @@ func iniciarServidor(endereco string, bd *banco.Banco, servicoZabbix *zabbix.Ser
 		}
 	}()
 	return srv
+}
+
+// ----- Autenticação -----
+
+// construirServicoAutenticacao lê senha de login, token mestre e TTL do
+// ambiente. Sem env vars, usa os defaults — e loga em WARN para deixar
+// claro que rodar em produção sem sobrescrever é inseguro.
+func construirServicoAutenticacao() *autenticacao.Servico {
+	senha := os.Getenv(VAR_AMBIENTE_SENHA_LOGIN)
+	if senha == "" {
+		senha = SENHA_LOGIN_PADRAO
+		slog.Warn("usando SENHA_LOGIN_PADRAO — defina " + VAR_AMBIENTE_SENHA_LOGIN + " em produção")
+	}
+
+	tokenMestre := os.Getenv(VAR_AMBIENTE_TOKEN_MESTRE)
+	if tokenMestre == "" {
+		tokenMestre = TOKEN_MESTRE_PADRAO
+		slog.Warn("usando TOKEN_MESTRE_PADRAO — defina " + VAR_AMBIENTE_TOKEN_MESTRE + " em produção")
+	}
+
+	ttl := TTL_TOKEN_PADRAO
+	if bruto := os.Getenv(VAR_AMBIENTE_TTL_TOKEN); bruto != "" {
+		if segundos, err := strconv.Atoi(bruto); err == nil && segundos > 0 {
+			ttl = time.Duration(segundos) * time.Second
+		}
+	}
+
+	slog.Info("autenticação ativa", "ttl_token", ttl.String())
+	return autenticacao.NovoServico(tokenMestre, senha, ttl)
 }
 
 // ----- Shutdown -----

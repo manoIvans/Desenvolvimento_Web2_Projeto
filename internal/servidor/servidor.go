@@ -17,6 +17,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"SignalHub/internal/autenticacao"
 	"SignalHub/internal/filtros"
 	"SignalHub/internal/frontend"
 	"SignalHub/internal/instancias"
@@ -39,12 +40,14 @@ var CORS_ORIGENS_PERMITIDAS = []string{"*"}
 
 // ----- Tipos -----
 
-// Dependencias agrupa os handlers injetados no servidor.
+// Dependencias agrupa os handlers e serviços injetados no servidor.
 type Dependencias struct {
-	HandlerZabbix     *zabbix.Handler
-	HandlerMsp        *mspclouds.Handler
-	HandlerInstancias *instancias.Handler
-	HandlerFiltros    *filtros.Handler
+	HandlerZabbix       *zabbix.Handler
+	HandlerMsp          *mspclouds.Handler
+	HandlerInstancias   *instancias.Handler
+	HandlerFiltros      *filtros.Handler
+	HandlerAutenticacao *autenticacao.Handler
+	ServicoAutenticacao *autenticacao.Servico
 }
 
 // Servidor encapsula o *http.Server com métodos Iniciar/Parar thread-safe.
@@ -93,12 +96,24 @@ func registrarMiddlewares(r chi.Router) {
 	}))
 }
 
+// registrarRotas isola três zonas:
+//
+//  1. Públicas: /healthz (liveness) e POST /login.
+//  2. Protegidas por Bearer token: agregadores de alertas e todos os CRUDs.
+//  3. Frontend estático (público): /* serve o painel HTML/CSS/JS, que faz
+//     seu próprio gate de autenticação chamando a API com o token.
 func registrarRotas(r chi.Router, deps Dependencias) {
 	saude.Rotas(r)
-	deps.HandlerZabbix.Rotas(r)
-	deps.HandlerMsp.Rotas(r)
-	deps.HandlerInstancias.Rotas(r)
-	deps.HandlerFiltros.Rotas(r)
+	deps.HandlerAutenticacao.Rotas(r)
+
+	r.Group(func(protegido chi.Router) {
+		protegido.Use(autenticacao.Proteger(deps.ServicoAutenticacao))
+		deps.HandlerZabbix.Rotas(protegido)
+		deps.HandlerMsp.Rotas(protegido)
+		deps.HandlerInstancias.Rotas(protegido)
+		deps.HandlerFiltros.Rotas(protegido)
+	})
+
 	frontend.Rotas(r)
 }
 
