@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"SignalHub/internal/config"
 )
 
 // ----- Constantes -----
@@ -39,7 +37,7 @@ var ROTULOS_PRIORIDADE = map[string]string{
 // Servico encapsula instâncias configuradas + cache em memória.
 type Servico struct {
 	mu            sync.RWMutex
-	instancias    []config.InstanciaZabbix
+	instancias    []InstanciaConfig
 	cache         []Problema
 	ultimasFalhas []string
 	versoes       map[string]string
@@ -50,7 +48,7 @@ type Servico struct {
 
 // NovoServico constrói o serviço com as instâncias informadas.
 // Se httpCliente == nil, usa o cliente HTTP padrão (útil para injetar mock em testes).
-func NovoServico(instancias []config.InstanciaZabbix, httpCliente *http.Client) *Servico {
+func NovoServico(instancias []InstanciaConfig, httpCliente *http.Client) *Servico {
 	if httpCliente == nil {
 		httpCliente = httpClientPadrao
 	}
@@ -181,7 +179,7 @@ type resultadoBusca struct {
 	erro      error
 }
 
-func dispararBuscas(s *Servico, instancias []config.InstanciaZabbix) <-chan resultadoBusca {
+func dispararBuscas(s *Servico, instancias []InstanciaConfig) <-chan resultadoBusca {
 	canal := make(chan resultadoBusca, len(instancias))
 	for _, inst := range instancias {
 		inst := inst
@@ -220,7 +218,7 @@ func coletarResultados(canal <-chan resultadoBusca, total int) ([]Problema, map[
 }
 
 // buscarDaInstancia faz trigger.get + apiinfo.version em paralelo para uma instância.
-func (s *Servico) buscarDaInstancia(inst config.InstanciaZabbix) ([]Problema, string, error) {
+func (s *Servico) buscarDaInstancia(inst InstanciaConfig) ([]Problema, string, error) {
 	if inst.URL == "" {
 		return nil, "", fmt.Errorf("url não informada")
 	}
@@ -264,7 +262,7 @@ func (s *Servico) buscarDaInstancia(inst config.InstanciaZabbix) ([]Problema, st
 	return converterTriggers(triggers, inst.Nome), versao, nil
 }
 
-func buscarTriggers(cli *http.Client, inst config.InstanciaZabbix) ([]triggerRaw, error) {
+func buscarTriggers(cli *http.Client, inst InstanciaConfig) ([]triggerRaw, error) {
 	var triggers []triggerRaw
 	erro := chamarApiAdaptado(cli, inst.URL, inst.APIKey, METODO_TRIGGER_GET, parametrosTriggers(), &triggers)
 	return triggers, erro
@@ -332,10 +330,10 @@ func converterTrigger(t triggerRaw, nomeInstancia string) Problema {
 
 // ----- Helpers de cache -----
 
-func (s *Servico) copiarInstancias() []config.InstanciaZabbix {
+func (s *Servico) copiarInstancias() []InstanciaConfig {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	instancias := make([]config.InstanciaZabbix, len(s.instancias))
+	instancias := make([]InstanciaConfig, len(s.instancias))
 	copy(instancias, s.instancias)
 	return instancias
 }

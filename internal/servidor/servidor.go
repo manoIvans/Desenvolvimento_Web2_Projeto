@@ -17,7 +17,9 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"SignalHub/internal/filtros"
 	"SignalHub/internal/frontend"
+	"SignalHub/internal/instancias"
 	"SignalHub/internal/mspclouds"
 	"SignalHub/internal/saude"
 	"SignalHub/internal/zabbix"
@@ -39,8 +41,10 @@ var CORS_ORIGENS_PERMITIDAS = []string{"*"}
 
 // Dependencias agrupa os handlers injetados no servidor.
 type Dependencias struct {
-	HandlerZabbix *zabbix.Handler
-	HandlerMsp    *mspclouds.Handler
+	HandlerZabbix     *zabbix.Handler
+	HandlerMsp        *mspclouds.Handler
+	HandlerInstancias *instancias.Handler
+	HandlerFiltros    *filtros.Handler
 }
 
 // Servidor encapsula o *http.Server com métodos Iniciar/Parar thread-safe.
@@ -57,6 +61,11 @@ func Novo(endereco string, handler http.Handler) *Servidor {
 		endereco: endereco,
 		handler:  handler,
 	}
+}
+
+// Endereco devolve o endereço de escuta configurado.
+func (s *Servidor) Endereco() string {
+	return s.endereco
 }
 
 // ----- Router -----
@@ -88,6 +97,8 @@ func registrarRotas(r chi.Router, deps Dependencias) {
 	saude.Rotas(r)
 	deps.HandlerZabbix.Rotas(r)
 	deps.HandlerMsp.Rotas(r)
+	deps.HandlerInstancias.Rotas(r)
+	deps.HandlerFiltros.Rotas(r)
 	frontend.Rotas(r)
 }
 

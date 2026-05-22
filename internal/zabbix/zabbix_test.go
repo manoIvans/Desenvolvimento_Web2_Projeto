@@ -11,8 +11,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"SignalHub/internal/config"
 )
 
 // ----- Testes do Servico -----
@@ -26,7 +24,7 @@ func TestServicoConfiguradoFalsoQuandoVazio(t *testing.T) {
 }
 
 func TestServicoConfiguradoVerdadeiroComInstancias(t *testing.T) {
-	svc := NovoServico([]config.InstanciaZabbix{
+	svc := NovoServico([]InstanciaConfig{
 		{Nome: "x", URL: "http://x", APIKey: "k"},
 	}, nil)
 
@@ -64,7 +62,7 @@ func TestRefreshBemSucedidoPopulaCache(t *testing.T) {
 	servidor := servidorZabbixFake(t, triggers, "6.4.0")
 	defer servidor.Close()
 
-	svc := NovoServico([]config.InstanciaZabbix{
+	svc := NovoServico([]InstanciaConfig{
 		{Nome: "Teste", URL: servidor.URL, APIKey: "chave-teste"},
 	}, servidor.Client())
 
@@ -96,7 +94,7 @@ func TestRefreshFalhaTotalRetornaErro(t *testing.T) {
 	servidor := servidorZabbixFake500(t)
 	defer servidor.Close()
 
-	svc := NovoServico([]config.InstanciaZabbix{
+	svc := NovoServico([]InstanciaConfig{
 		{Nome: "Quebrada", URL: servidor.URL, APIKey: "k"},
 	}, servidor.Client())
 
@@ -123,7 +121,7 @@ func TestRefreshParcialMantemUmaInstancia(t *testing.T) {
 	servidorRuim := servidorZabbixFake500(t)
 	defer servidorRuim.Close()
 
-	svc := NovoServico([]config.InstanciaZabbix{
+	svc := NovoServico([]InstanciaConfig{
 		{Nome: "ok", URL: servidorBom.URL, APIKey: "k1"},
 		{Nome: "quebrado", URL: servidorRuim.URL, APIKey: "k2"},
 	}, servidorBom.Client())
@@ -141,7 +139,7 @@ func TestRefreshParcialMantemUmaInstancia(t *testing.T) {
 }
 
 func TestCarregarCacheVazioAntesDoRefresh(t *testing.T) {
-	svc := NovoServico([]config.InstanciaZabbix{
+	svc := NovoServico([]InstanciaConfig{
 		{Nome: "x", URL: "http://x", APIKey: "k"},
 	}, nil)
 

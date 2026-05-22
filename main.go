@@ -1,21 +1,27 @@
 // main.go
 //
-// Entrypoint da API SignalHub. Lê configuracoes.json, monta os serviços
-// Zabbix/MSP, sobe o servidor HTTP (que também serve o frontend em `/`)
-// e aguarda SIGINT/SIGTERM.
+// Entrypoint da API SignalHub. Conecta ao PostgreSQL, aplica o schema,
+// carrega as instâncias Zabbix/MSP persistidas, sobe o servidor HTTP
+// (que também serve o frontend em `/`) e aguarda SIGINT/SIGTERM.
 
 package main
 
 import (
 	"context"
+	"embed"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"SignalHub/internal/config"
+	"SignalHub/internal/banco"
+	"SignalHub/internal/filtros"
+	"SignalHub/internal/instancias"
 	"SignalHub/internal/mspclouds"
 	"SignalHub/internal/servidor"
 	"SignalHub/internal/zabbix"
@@ -27,74 +33,127 @@ const (
 	ENDERECO_PADRAO    = ":8080"
 	VAR_AMBIENTE_PORTA = "SIGNALHUB_ENDERECO"
 	TIMEOUT_SHUTDOWN   = 20 * time.Second
+	DIRETORIO_SCHEMA   = "db/schema"
 )
 
-const TESTANDO = false
+//go:embed db/schema
+var arquivosSchema embed.FS
 
 // ----- Entrypoint -----
 
 func main() {
 	configurarLogger()
 
-	cfg, configEncontrada := lerConfiguracoesOuAbortar()
-	endereco := resolverEndereco(cfg)
+	bd := conectarBancoOuAbortar()
+	defer bd.Fechar()
 
-	servicoZabbix, servicoMsp := construirServicos(cfg)
-	if configEncontrada {
-		aquecerCachesIniciais(servicoZabbix, servicoMsp)
-	} else {
-		ativarModoDemonstracao(servicoZabbix, servicoMsp)
-	}
+	servicoZabbix, servicoMsp := construirServicos(bd)
+	aquecerCachesIniciais(servicoZabbix, servicoMsp)
 
-	srv := iniciarServidor(endereco, servicoZabbix, servicoMsp)
-	aguardarShutdown(srv, endereco)
+	srv := iniciarServidor(resolverEndereco(), bd, servicoZabbix, servicoMsp)
+	aguardarShutdown(srv)
 }
 
-// ----- Bootstrap -----
+// ----- Banco -----
 
-func lerConfiguracoesOuAbortar() (config.Config, bool) {
-	cfg, encontrada, err := config.Ler()
+func conectarBancoOuAbortar() *banco.Banco {
+	schema, err := carregarSchema()
 	if err != nil {
-		slog.Error("erro ao ler configuracoes.json", "erro", err)
+		slog.Error("falha ao carregar schema embutido", "erro", err)
 		os.Exit(1)
 	}
-	if !encontrada {
-		slog.Warn("configuracoes.json não encontrado — ativando modo demonstração com mocks")
-		return cfg, false
+
+	bd, err := banco.Conectar(context.Background(), banco.DSN(), schema)
+	if err != nil {
+		slog.Error("falha ao conectar ao PostgreSQL", "erro", err,
+			"dica", "suba o banco com 'docker compose up -d'")
+		os.Exit(1)
 	}
-	slog.Info("configuração carregada",
-		"instancias_zabbix", len(cfg.ZabbixInstancias),
-		"instancias_msp", len(cfg.MspInstancias),
-	)
-	return cfg, true
+	slog.Info("conectado ao PostgreSQL — schema aplicado")
+	return bd
 }
 
-// ----- Modo demonstração -----
+// carregarSchema lê e concatena os arquivos .sql embutidos de db/schema,
+// em ordem alfabética (a numeração dos arquivos define a ordem de aplicação).
+func carregarSchema() (string, error) {
+	entradas, err := fs.ReadDir(arquivosSchema, DIRETORIO_SCHEMA)
+	if err != nil {
+		return "", err
+	}
 
-func ativarModoDemonstracao(servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico) {
-	servicoZabbix.AtivarModoDemo(zabbix.MocksDemonstracao())
-	servicoMsp.AtivarModoDemo(mspclouds.MocksDemonstracao())
-	slog.Info("modo demonstração ativo",
-		"problemas_zabbix_mock", len(zabbix.MocksDemonstracao()),
-		"alertas_msp_mock", len(mspclouds.MocksDemonstracao()),
-	)
+	var nomes []string
+	for _, entrada := range entradas {
+		if entrada.IsDir() || !strings.HasSuffix(entrada.Name(), ".sql") {
+			continue
+		}
+		nomes = append(nomes, entrada.Name())
+	}
+	sort.Strings(nomes)
+
+	var construtor strings.Builder
+	for _, nome := range nomes {
+		conteudo, err := arquivosSchema.ReadFile(DIRETORIO_SCHEMA + "/" + nome)
+		if err != nil {
+			return "", err
+		}
+		construtor.Write(conteudo)
+		construtor.WriteString("\n")
+	}
+	return construtor.String(), nil
 }
 
-func resolverEndereco(cfg config.Config) string {
-	endereco := cfg.PortaWeb
-	if endereco == "" {
-		endereco = ENDERECO_PADRAO
-	}
-	if valor := os.Getenv(VAR_AMBIENTE_PORTA); valor != "" {
-		endereco = valor
-	}
-	return endereco
-}
+// ----- Serviços -----
 
-func construirServicos(cfg config.Config) (*zabbix.Servico, *mspclouds.Servico) {
-	servicoZabbix := zabbix.NovoServico(cfg.ZabbixInstancias, nil)
-	servicoMsp := mspclouds.NovoServico(cfg.MspInstancias, "", nil)
+// construirServicos lê as instâncias persistidas no banco e monta os
+// serviços Zabbix/MSP. Quando não há instâncias cadastradas, o serviço
+// entra em modo demonstração com dados mock.
+func construirServicos(bd *banco.Banco) (*zabbix.Servico, *mspclouds.Servico) {
+	contexto := context.Background()
+
+	servicoZabbix := zabbix.NovoServico(carregarInstanciasZabbix(contexto, bd), nil)
+	servicoMsp := mspclouds.NovoServico(carregarChavesMsp(contexto, bd), "", nil)
+
+	if !servicoZabbix.Configurado() {
+		servicoZabbix.AtivarModoDemo(zabbix.MocksDemonstracao())
+		slog.Warn("nenhuma instância Zabbix no banco — modo demonstração ativo")
+	}
+	if !servicoMsp.Configurado() {
+		servicoMsp.AtivarModoDemo(mspclouds.MocksDemonstracao())
+		slog.Warn("nenhuma api_key MSP Clouds no banco — modo demonstração ativo")
+	}
 	return servicoZabbix, servicoMsp
+}
+
+func carregarInstanciasZabbix(contexto context.Context, bd *banco.Banco) []zabbix.InstanciaConfig {
+	registros, err := bd.Consultas.ListarZabbixInstancias(contexto)
+	if err != nil {
+		slog.Error("falha ao carregar instâncias Zabbix do banco", "erro", err)
+		return nil
+	}
+
+	lista := make([]zabbix.InstanciaConfig, 0, len(registros))
+	for _, r := range registros {
+		lista = append(lista, zabbix.InstanciaConfig{
+			Nome:   r.Nome,
+			URL:    r.Url,
+			APIKey: r.ApiKey,
+		})
+	}
+	return lista
+}
+
+func carregarChavesMsp(contexto context.Context, bd *banco.Banco) []string {
+	registros, err := bd.Consultas.ListarMspInstancias(contexto)
+	if err != nil {
+		slog.Error("falha ao carregar instâncias MSP Clouds do banco", "erro", err)
+		return nil
+	}
+
+	chaves := make([]string, 0, len(registros))
+	for _, r := range registros {
+		chaves = append(chaves, r.ApiKey)
+	}
+	return chaves
 }
 
 // ----- Refresh inicial -----
@@ -139,10 +198,12 @@ func aquecerMsp(servicoMsp *mspclouds.Servico) {
 
 // ----- Servidor HTTP -----
 
-func iniciarServidor(endereco string, servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico) *servidor.Servidor {
+func iniciarServidor(endereco string, bd *banco.Banco, servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico) *servidor.Servidor {
 	router := servidor.MontarRouter(servidor.Dependencias{
-		HandlerZabbix: zabbix.NovoHandler(servicoZabbix),
-		HandlerMsp:    mspclouds.NovoHandler(servicoMsp),
+		HandlerZabbix:     zabbix.NovoHandler(servicoZabbix),
+		HandlerMsp:        mspclouds.NovoHandler(servicoMsp),
+		HandlerInstancias: instancias.NovoHandler(instancias.NovoServico(bd.Consultas)),
+		HandlerFiltros:    filtros.NovoHandler(filtros.NovoServico(bd.Consultas)),
 	})
 
 	srv := servidor.Novo(endereco, router)
@@ -157,8 +218,8 @@ func iniciarServidor(endereco string, servicoZabbix *zabbix.Servico, servicoMsp 
 
 // ----- Shutdown -----
 
-func aguardarShutdown(srv *servidor.Servidor, endereco string) {
-	slog.Info("signalhub iniciado", "endereco", endereco)
+func aguardarShutdown(srv *servidor.Servidor) {
+	slog.Info("signalhub iniciado", "endereco", srv.Endereco())
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -175,6 +236,13 @@ func aguardarShutdown(srv *servidor.Servidor, endereco string) {
 }
 
 // ----- Helpers -----
+
+func resolverEndereco() string {
+	if valor := os.Getenv(VAR_AMBIENTE_PORTA); valor != "" {
+		return valor
+	}
+	return ENDERECO_PADRAO
+}
 
 func configurarLogger() {
 	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{

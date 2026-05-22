@@ -7,6 +7,16 @@ package zabbix
 
 import "encoding/json"
 
+// ----- Configuração -----
+
+// InstanciaConfig são os dados de conexão de uma instância Zabbix,
+// carregados do banco de dados no boot da API.
+type InstanciaConfig struct {
+	Nome   string
+	URL    string
+	APIKey string
+}
+
 // ----- Tipos de saída -----
 
 // ProblemaTag é uma tag aplicada a um problema/trigger.
