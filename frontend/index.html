@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="componentes/card.css" />
   <link rel="stylesheet" href="zabbix/css/zabbix.css" />
   <link rel="stylesheet" href="mspcloud/css/mspcloud.css" />
+  <link rel="stylesheet" href="configuracoes/css/configuracoes.css" />
 </head>
 <body>
 
@@ -19,6 +20,7 @@
       SignalHub
     </div>
     <div class="cabecalho-acoes">
+      <button class="botao-configuracoes" id="botaoConfiguracoes">⚙️ configurações</button>
       <button class="botao-atualizar" id="botaoAtualizar">⟳ atualizar</button>
       <span class="cabecalho-info" id="ultimaAtualizacao">—</span>
     </div>
@@ -51,11 +53,28 @@
 
   <footer class="rodape">SignalHub — Desenvolvimento Web II / UFRN</footer>
 
+  <!-- Modal de configurações -->
+  <div class="modal-overlay escondida" id="modalConfiguracoes">
+    <div class="modal-janela" role="dialog" aria-modal="true" aria-labelledby="modalConfiguracoesTitulo">
+      <header class="modal-cabecalho">
+        <h2 id="modalConfiguracoesTitulo">⚙️ Configurações</h2>
+        <button class="modal-fechar" id="botaoFecharConfiguracoes" aria-label="Fechar">✕</button>
+      </header>
+      <nav class="modal-abas">
+        <button class="modal-aba ativa" data-painel="zabbix">Instâncias Zabbix</button>
+        <button class="modal-aba"        data-painel="mspcloud">Instâncias MSP Clouds</button>
+        <button class="modal-aba"        data-painel="filtros">Filtros Zabbix</button>
+      </nav>
+      <div class="modal-conteudo" id="modalConteudo"></div>
+    </div>
+  </div>
+
   <!-- Núcleo (api + orquestrador) -->
-  <script src="nucleo/api.js"                defer></script>
-  <script src="zabbix/scripts/zabbix.js"     defer></script>
-  <script src="mspcloud/scripts/mspcloud.js" defer></script>
-  <script src="nucleo/nucleo.js"             defer></script>
+  <script src="nucleo/api.js"                        defer></script>
+  <script src="zabbix/scripts/zabbix.js"             defer></script>
+  <script src="mspcloud/scripts/mspcloud.js"         defer></script>
+  <script src="configuracoes/scripts/configuracoes.js" defer></script>
+  <script src="nucleo/nucleo.js"                     defer></script>
 
 </body>
 </html>

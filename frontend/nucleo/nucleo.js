@@ -18,15 +18,19 @@
     mspcloud: () => SignalApi.RefreshMsp(),
   };
 
+  const EVENTO_CONFIGURACOES_ALTERADAS = 'configuracoesAlteradasEvent';
+
 
   // ----- Bootstrap -----
 
   async function inicializar() {
+    ConfiguracoesModal.Inicializar();
     await renderizarTodas();
     atualizarHorario();
     trocarSecao(ID_SECAO_PADRAO);
     registrarHandlersAbas();
     registrarHandlerAtualizar();
+    registrarHandlerConfiguracoes();
   }
 
 
@@ -93,6 +97,13 @@
     const botao = document.getElementById('botaoAtualizar');
     if (!botao) return;
     botao.addEventListener('click', executarRefresh);
+  }
+
+
+  function registrarHandlerConfiguracoes() {
+    // Instâncias adicionadas/removidas só refletem no painel após um refresh
+    // que reconsulta as fontes — por isso reaproveitamos executarRefresh.
+    document.addEventListener(EVENTO_CONFIGURACOES_ALTERADAS, executarRefresh);
   }
 
 
