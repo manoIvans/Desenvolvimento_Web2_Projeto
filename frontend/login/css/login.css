@@ -1,0 +1,171 @@
+/* ----- Tokens locais (página de login é autocontida) ----- */
+
+:root {
+  --azul:    #0061f2;
+  --azul-2:  #4f46e5;
+  --texto:   #1c1c24;
+  --suave:   #6b6b7a;
+  --borda:   #d8d8e0;
+  --fundo:   #f7f7fa;
+  --erro:    #d32f2f;
+}
+
+
+/* ----- Reset mínimo ----- */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--texto);
+  background: radial-gradient(ellipse at top, #eaf3ff 0%, var(--fundo) 60%, #ffffff 100%);
+  min-height: 100vh;
+}
+
+
+/* ----- Painel centralizado ----- */
+
+.login-painel {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  gap: 24px;
+}
+
+
+/* ----- Card de login ----- */
+
+.login-card {
+  background: #fff;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .08);
+  padding: 32px 36px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.login-logotipo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  margin-bottom: 18px;
+  color: var(--texto);
+}
+
+.login-logotipo-bola {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--azul);
+  box-shadow: 0 0 6px var(--azul);
+}
+
+.login-card h1 {
+  margin: 4px 0;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--azul), var(--azul-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 700;
+}
+
+.login-subtitulo {
+  color: var(--suave);
+  margin: 0 0 22px;
+  font-size: .88rem;
+}
+
+
+/* ----- Formulário ----- */
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: .82rem;
+  color: var(--suave);
+}
+
+.login-form input {
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  font-size: .95rem;
+  color: var(--texto);
+  background: var(--fundo);
+}
+
+.login-form input:focus {
+  outline: 2px solid var(--azul);
+  outline-offset: -1px;
+}
+
+
+/* ----- Botão ----- */
+
+.login-botao {
+  background: linear-gradient(135deg, var(--azul), var(--azul-2));
+  color: #fff;
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: .95rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: filter .12s;
+}
+
+.login-botao:hover {
+  filter: brightness(1.08);
+}
+
+.login-botao:disabled {
+  opacity: .55;
+  cursor: progress;
+}
+
+
+/* ----- Mensagem ----- */
+
+.login-mensagem {
+  margin-top: 14px;
+  font-size: .85rem;
+  border-radius: 6px;
+}
+
+.login-mensagem:empty {
+  display: none;
+}
+
+.login-mensagem.erro {
+  padding: 9px 12px;
+  background: #fdecea;
+  color: var(--erro);
+}
+
+
+/* ----- Rodapé ----- */
+
+.login-rodape {
+  color: var(--suave);
+  font-size: .78rem;
+}

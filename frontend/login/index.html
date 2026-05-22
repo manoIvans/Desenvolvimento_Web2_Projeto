@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SignalHub — Entrar</title>
+  <link rel="stylesheet" href="css/login.css" />
+</head>
+<body>
+
+  <main class="login-painel">
+
+    <section class="login-card">
+
+      <div class="login-logotipo">
+        <span class="login-logotipo-bola"></span>
+        <span>SignalHub</span>
+      </div>
+
+      <h1>Entrar</h1>
+      <p class="login-subtitulo">Acesso restrito · informe sua senha</p>
+
+      <form id="formLogin" class="login-form" autocomplete="off">
+        <label>Senha
+          <input name="senha" type="password" required autofocus />
+        </label>
+        <button type="submit" class="login-botao">Entrar</button>
+      </form>
+
+      <div class="login-mensagem" data-mensagem></div>
+
+    </section>
+
+    <footer class="login-rodape">SignalHub · Desenvolvimento Web II / UFRN</footer>
+
+  </main>
+
+  <script src="scripts/login.js" defer></script>
+
+</body>
+</html>

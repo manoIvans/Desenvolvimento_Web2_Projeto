@@ -3,20 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SignalHub</title>
-  <style>
-    html, body { margin: 0; padding: 0; height: 100%; background: #f7f7fa; }
-    body { display: flex; align-items: center; justify-content: center;
-           font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-           color: #6b6b7a; font-size: .9rem; }
-  </style>
-  <script>
-    // Bootstrap: decide entre /painel/ e /login/ conforme a sessão local.
-    (function () {
-      const CHAVE_TOKEN  = 'signalhubToken';
-      const CHAVE_EXPIRA = 'signalhubExpira';
+  <title>SignalHub — Painel de Alertas</title>
 
-<<<<<<< Updated upstream
   <link rel="stylesheet" href="nucleo/base.css" />
   <link rel="stylesheet" href="nucleo/tema.css" />
   <link rel="stylesheet" href="componentes/card.css" />
@@ -34,6 +22,7 @@
     <div class="cabecalho-acoes">
       <button class="botao-configuracoes" id="botaoConfiguracoes">⚙️ configurações</button>
       <button class="botao-atualizar" id="botaoAtualizar">⟳ atualizar</button>
+      <button class="botao-sair" id="botaoSair" title="Sair">⎋ sair</button>
       <span class="cabecalho-info" id="ultimaAtualizacao">—</span>
     </div>
   </header>
@@ -89,15 +78,4 @@
   <script src="nucleo/nucleo.js"                     defer></script>
 
 </body>
-=======
-      const token  = localStorage.getItem(CHAVE_TOKEN);
-      const expira = localStorage.getItem(CHAVE_EXPIRA);
-      const valido = token && (!expira || new Date(expira) > new Date());
-
-      window.location.replace(valido ? '/painel/' : '/login/');
-    })();
-  </script>
-</head>
-<body>redirecionando…</body>
->>>>>>> Stashed changes
 </html>

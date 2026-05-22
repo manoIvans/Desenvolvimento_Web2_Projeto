@@ -20,10 +20,24 @@
 
   const EVENTO_CONFIGURACOES_ALTERADAS = 'configuracoesAlteradasEvent';
 
+<<<<<<< Updated upstream:frontend/nucleo/nucleo.js
+=======
+  const URL_LOGIN = '/login/';
+
+>>>>>>> Stashed changes:frontend/painel/nucleo/nucleo.js
 
   // ----- Bootstrap -----
 
   async function inicializar() {
+<<<<<<< Updated upstream:frontend/nucleo/nucleo.js
+=======
+    // Sem token → painel não tem o que fazer; volta pro login.
+    if (!SignalApi.TokenAtual()) {
+      window.location.replace(URL_LOGIN);
+      return;
+    }
+
+>>>>>>> Stashed changes:frontend/painel/nucleo/nucleo.js
     ConfiguracoesModal.Inicializar();
     await renderizarTodas();
     atualizarHorario();
@@ -31,6 +45,10 @@
     registrarHandlersAbas();
     registrarHandlerAtualizar();
     registrarHandlerConfiguracoes();
+<<<<<<< Updated upstream:frontend/nucleo/nucleo.js
+=======
+    registrarHandlerSair();
+>>>>>>> Stashed changes:frontend/painel/nucleo/nucleo.js
   }
 
 
@@ -107,5 +125,15 @@
   }
 
 
+<<<<<<< Updated upstream:frontend/nucleo/nucleo.js
+=======
+  function registrarHandlerSair() {
+    const botao = document.getElementById('botaoSair');
+    if (!botao) return;
+    botao.addEventListener('click', () => SignalApi.Sair());
+  }
+
+
+>>>>>>> Stashed changes:frontend/painel/nucleo/nucleo.js
   document.addEventListener('DOMContentLoaded', inicializar);
 })();

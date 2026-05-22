@@ -58,7 +58,8 @@ body {
   gap: 12px;
 }
 
-.botao-atualizar {
+.botao-atualizar,
+.botao-sair {
   background: var(--superficie);
   color: var(--texto);
   border: 1px solid var(--borda);
@@ -74,7 +75,13 @@ body {
   border-color: var(--destaque);
 }
 
-.botao-atualizar:disabled {
+.botao-sair:hover {
+  color: var(--gravidade-desastre);
+  border-color: var(--gravidade-desastre);
+}
+
+.botao-atualizar:disabled,
+.botao-sair:disabled {
   opacity: .55;
   cursor: progress;
 }
