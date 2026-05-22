@@ -16,80 +16,6 @@
       const CHAVE_TOKEN  = 'signalhubToken';
       const CHAVE_EXPIRA = 'signalhubExpira';
 
-<<<<<<< Updated upstream
-  <link rel="stylesheet" href="nucleo/base.css" />
-  <link rel="stylesheet" href="nucleo/tema.css" />
-  <link rel="stylesheet" href="componentes/card.css" />
-  <link rel="stylesheet" href="zabbix/css/zabbix.css" />
-  <link rel="stylesheet" href="mspcloud/css/mspcloud.css" />
-  <link rel="stylesheet" href="configuracoes/css/configuracoes.css" />
-</head>
-<body>
-
-  <header class="cabecalho">
-    <div class="logotipo">
-      <span class="logotipo-bola"></span>
-      SignalHub
-    </div>
-    <div class="cabecalho-acoes">
-      <button class="botao-configuracoes" id="botaoConfiguracoes">⚙️ configurações</button>
-      <button class="botao-atualizar" id="botaoAtualizar">⟳ atualizar</button>
-      <span class="cabecalho-info" id="ultimaAtualizacao">—</span>
-    </div>
-  </header>
-
-  <nav class="navegacao">
-    <button class="aba ativa" data-secao="zabbix">🛡️ Zabbix</button>
-    <button class="aba"        data-secao="mspcloud">☁️ MSP Clouds</button>
-  </nav>
-
-  <main class="conteudo">
-
-    <section id="secao-zabbix" class="secao">
-      <div class="secao-cabecalho">
-        <h2>Problemas Zabbix</h2>
-        <span class="contador" id="contadorZabbix">0 problemas</span>
-      </div>
-      <div class="grade-cards" id="cardsZabbix"></div>
-    </section>
-
-    <section id="secao-mspcloud" class="secao escondida">
-      <div class="secao-cabecalho">
-        <h2>Alertas MSP Clouds</h2>
-        <span class="contador" id="contadorMspCloud">0 alertas</span>
-      </div>
-      <div class="grade-cards" id="cardsMspCloud"></div>
-    </section>
-
-  </main>
-
-  <footer class="rodape">SignalHub — Desenvolvimento Web II / UFRN</footer>
-
-  <!-- Modal de configurações -->
-  <div class="modal-overlay escondida" id="modalConfiguracoes">
-    <div class="modal-janela" role="dialog" aria-modal="true" aria-labelledby="modalConfiguracoesTitulo">
-      <header class="modal-cabecalho">
-        <h2 id="modalConfiguracoesTitulo">⚙️ Configurações</h2>
-        <button class="modal-fechar" id="botaoFecharConfiguracoes" aria-label="Fechar">✕</button>
-      </header>
-      <nav class="modal-abas">
-        <button class="modal-aba ativa" data-painel="zabbix">Instâncias Zabbix</button>
-        <button class="modal-aba"        data-painel="mspcloud">Instâncias MSP Clouds</button>
-        <button class="modal-aba"        data-painel="filtros">Filtros Zabbix</button>
-      </nav>
-      <div class="modal-conteudo" id="modalConteudo"></div>
-    </div>
-  </div>
-
-  <!-- Núcleo (api + orquestrador) -->
-  <script src="nucleo/api.js"                        defer></script>
-  <script src="zabbix/scripts/zabbix.js"             defer></script>
-  <script src="mspcloud/scripts/mspcloud.js"         defer></script>
-  <script src="configuracoes/scripts/configuracoes.js" defer></script>
-  <script src="nucleo/nucleo.js"                     defer></script>
-
-</body>
-=======
       const token  = localStorage.getItem(CHAVE_TOKEN);
       const expira = localStorage.getItem(CHAVE_EXPIRA);
       const valido = token && (!expira || new Date(expira) > new Date());
@@ -99,5 +25,4 @@
   </script>
 </head>
 <body>redirecionando…</body>
->>>>>>> Stashed changes
 </html>
