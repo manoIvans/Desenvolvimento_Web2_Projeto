@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════
 //  nucleo/api.js — Wrapper de chamadas HTTP ao backend SignalHub
 //  · Injeta Authorization: Bearer <token> nas rotas protegidas
-//  · Em 401, limpa a sessão local e redireciona para /login/
+//  · Em 401, tenta renovar a sessão (refresh token) e repete a chamada;
+//    se a renovação falhar, limpa a sessão e redireciona para /login/
 // ═══════════════════════════════════════════════
 
 const SignalApi = (function () {
@@ -18,9 +19,12 @@ const SignalApi = (function () {
     InstanciasMsp:    '/mspclouds/instancias',
   };
 
-  const CHAVE_TOKEN  = 'signalhubToken';
-  const CHAVE_EXPIRA = 'signalhubExpira';
-  const URL_LOGIN    = '/login/';
+  const CHAVE_TOKEN   = 'signalhubToken';
+  const CHAVE_REFRESH = 'signalhubRefresh';
+  const CHAVE_EXPIRA  = 'signalhubExpira';
+  const URL_LOGIN     = '/login/';
+  const ROTA_REFRESH  = '/refresh';
+  const ROTA_LOGOUT   = '/logout';
 
   const TIMEOUT_REQUISICAO_MS = 20000;
 
@@ -33,10 +37,54 @@ const SignalApi = (function () {
 
 
   function Sair() {
+    revogarRefreshRemoto();
     localStorage.removeItem(CHAVE_TOKEN);
+    localStorage.removeItem(CHAVE_REFRESH);
     localStorage.removeItem(CHAVE_EXPIRA);
     if (window.location.pathname.startsWith('/login')) return;
     window.location.replace(URL_LOGIN);
+  }
+
+
+  // ----- Renovação de sessão (refresh token) -----
+
+  async function renovarSessao() {
+    const refresh = localStorage.getItem(CHAVE_REFRESH);
+    if (!refresh) return false;
+
+    try {
+      const resp = await fetch(ROTA_REFRESH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (!resp.ok) return false;
+      guardarSessao(await resp.json());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+
+  function guardarSessao(dados) {
+    if (!dados || !dados.token) return;
+    localStorage.setItem(CHAVE_TOKEN, dados.token);
+    localStorage.setItem(CHAVE_EXPIRA, dados.expira_em || '');
+    if (dados.refresh_token) localStorage.setItem(CHAVE_REFRESH, dados.refresh_token);
+  }
+
+
+  function revogarRefreshRemoto() {
+    const refresh = localStorage.getItem(CHAVE_REFRESH);
+    if (!refresh) return;
+    // keepalive garante o envio mesmo durante a navegação que segue o logout.
+    fetch(ROTA_LOGOUT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refresh }),
+      keepalive: true,
+    }).catch(() => {});
   }
 
 
@@ -130,7 +178,7 @@ const SignalApi = (function () {
 
   // ----- Internos -----
 
-  async function chamarAhRota(rota, metodo, corpo) {
+  async function chamarAhRota(rota, metodo, corpo, jaRenovou = false) {
     const controlador = new AbortController();
     const idTimeout = setTimeout(() => controlador.abort(), TIMEOUT_REQUISICAO_MS);
 
@@ -150,6 +198,9 @@ const SignalApi = (function () {
     try {
       const resp = await fetch(rota, opcoes);
       if (resp.status === 401) {
+        if (!jaRenovou && await renovarSessao()) {
+          return await chamarAhRota(rota, metodo, corpo, true);
+        }
         Sair();
         throw new Error('Sessão expirada. Faça login novamente.');
       }

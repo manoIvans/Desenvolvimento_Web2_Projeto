@@ -1,22 +1,30 @@
 // internal/autenticacao/tipos.go
 //
-// DTOs do domínio Autenticação: entrada do POST /login e o envelope de
-// resposta com o token temporário gerado.
+// DTOs do domínio Autenticação: corpos aceitos em /login, /refresh e
+// /logout, e o envelope de resposta com o par de tokens emitido.
 
 package autenticacao
 
-// ----- Tipo de entrada -----
+// ----- Tipos de entrada -----
 
 // EntradaLogin é o corpo aceito em POST /login.
 type EntradaLogin struct {
 	Senha string `json:"senha"`
 }
 
+// EntradaRefresh é o corpo aceito em POST /refresh e POST /logout.
+type EntradaRefresh struct {
+	TokenRefresh string `json:"refresh_token"`
+}
+
 // ----- Tipo de saída -----
 
-// RespostaLogin é o envelope devolvido por POST /login: token aleatório
-// e o momento exato em que ele expira (RFC 3339, UTC).
-type RespostaLogin struct {
-	Token    string `json:"token"`
-	ExpiraEm string `json:"expira_em"`
+// RespostaSessao é o envelope devolvido por /login e /refresh: access token
+// JWT, refresh token opaco, o instante de expiração do access (RFC 3339,
+// UTC) e o esquema de autorização a usar no header (Bearer).
+type RespostaSessao struct {
+	Token        string `json:"token"`
+	TokenRefresh string `json:"refresh_token"`
+	ExpiraEm     string `json:"expira_em"`
+	Tipo         string `json:"tipo"`
 }

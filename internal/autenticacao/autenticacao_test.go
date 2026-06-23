@@ -1,7 +1,8 @@
 // internal/autenticacao/autenticacao_test.go
 //
-// Testes unitários do domínio Autenticação: serviço de tokens, handler
-// POST /login e middleware Proteger.
+// Testes unitários do domínio Autenticação: serviço (login, rotação de
+// refresh, validação de token), handlers POST /login, /refresh e /logout, e
+// o middleware Proteger.
 
 package autenticacao
 
@@ -21,158 +22,248 @@ import (
 const (
 	SENHA_DEMO        = "umasenhacriativa"
 	TOKEN_MESTRE_DEMO = "mestre-imortal"
+	SEGREDO_DEMO      = "segredo-de-teste-bem-grande-123"
 )
+
+// ----- Helpers de teste -----
+
+func servicoDeTeste() *Servico {
+	return NovoServico(Config{
+		SegredoJWT:  []byte(SEGREDO_DEMO),
+		TokenMestre: TOKEN_MESTRE_DEMO,
+		SenhaLogin:  SENHA_DEMO,
+		TTLAcesso:   time.Hour,
+		TTLRefresh:  time.Hour,
+	})
+}
 
 // ----- Testes do Servico -----
 
-func TestAutenticarSenhaCorretaEmiteToken(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
+func TestAutenticarSenhaCorretaEmiteCredenciais(t *testing.T) {
+	svc := servicoDeTeste()
 
-	token, expiraEm, err := svc.Autenticar(SENHA_DEMO)
+	credenciais, err := svc.Autenticar(SENHA_DEMO)
 	if err != nil {
 		t.Fatalf("Autenticar não deveria falhar: %v", err)
 	}
-	if token == "" {
-		t.Error("token emitido deveria ser não-vazio")
+	if credenciais.TokenAcesso == "" {
+		t.Error("access token emitido deveria ser não-vazio")
 	}
-	if !expiraEm.After(time.Now()) {
+	if credenciais.TokenRefresh == "" {
+		t.Error("refresh token emitido deveria ser não-vazio")
+	}
+	if !credenciais.ExpiraEm.After(time.Now()) {
 		t.Error("expiração deveria ser futura")
 	}
 }
 
 func TestAutenticarSenhaErradaRetornaNaoAutorizado(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
+	svc := servicoDeTeste()
 
-	_, _, err := svc.Autenticar("senha-errada")
+	_, err := svc.Autenticar("senha-errada")
 	if !errors.Is(err, ErroNaoAutorizado) {
 		t.Errorf("esperado ErroNaoAutorizado, obtido %v", err)
 	}
 }
 
 func TestTokenValidoAceitaMestre(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
+	svc := servicoDeTeste()
 
 	if !svc.TokenValido(TOKEN_MESTRE_DEMO) {
 		t.Error("token mestre deveria ser válido")
 	}
 }
 
-func TestTokenValidoAceitaSessaoFresca(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
+func TestTokenValidoAceitaAccessTokenFresco(t *testing.T) {
+	svc := servicoDeTeste()
 
-	token, _, err := svc.Autenticar(SENHA_DEMO)
+	credenciais, err := svc.Autenticar(SENHA_DEMO)
 	if err != nil {
 		t.Fatalf("setup falhou: %v", err)
 	}
-	if !svc.TokenValido(token) {
-		t.Error("token recém-emitido deveria ser válido")
+	if !svc.TokenValido(credenciais.TokenAcesso) {
+		t.Error("access token recém-emitido deveria ser válido")
 	}
 }
 
 func TestTokenValidoRejeitaTokenAleatorio(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
+	svc := servicoDeTeste()
 
 	if svc.TokenValido("token-aleatorio-nunca-emitido") {
 		t.Error("token desconhecido não deveria ser válido")
 	}
 }
 
-func TestTokenValidoRejeitaSessaoExpirada(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Millisecond)
+func TestTokenValidoRejeitaRefreshTokenComoAcesso(t *testing.T) {
+	svc := servicoDeTeste()
 
-	token, _, err := svc.Autenticar(SENHA_DEMO)
+	credenciais, err := svc.Autenticar(SENHA_DEMO)
+	if err != nil {
+		t.Fatalf("setup falhou: %v", err)
+	}
+	// O refresh token é opaco (não é JWT) — não pode passar como Bearer.
+	if svc.TokenValido(credenciais.TokenRefresh) {
+		t.Error("refresh token não deveria ser aceito como access token")
+	}
+}
+
+func TestRenovarRotacionaRefreshToken(t *testing.T) {
+	svc := servicoDeTeste()
+
+	primeira, err := svc.Autenticar(SENHA_DEMO)
+	if err != nil {
+		t.Fatalf("setup falhou: %v", err)
+	}
+
+	segunda, err := svc.Renovar(primeira.TokenRefresh)
+	if err != nil {
+		t.Fatalf("Renovar não deveria falhar: %v", err)
+	}
+	if segunda.TokenRefresh == primeira.TokenRefresh {
+		t.Error("refresh token deveria ser rotacionado (novo valor)")
+	}
+	if !svc.TokenValido(segunda.TokenAcesso) {
+		t.Error("novo access token deveria ser válido")
+	}
+
+	// O refresh antigo deve ter sido invalidado pela rotação.
+	if _, err := svc.Renovar(primeira.TokenRefresh); !errors.Is(err, ErroNaoAutorizado) {
+		t.Errorf("refresh rotacionado deveria ser inválido, obtido %v", err)
+	}
+}
+
+func TestRenovarTokenInvalidoRetornaNaoAutorizado(t *testing.T) {
+	svc := servicoDeTeste()
+
+	if _, err := svc.Renovar("refresh-inexistente"); !errors.Is(err, ErroNaoAutorizado) {
+		t.Errorf("esperado ErroNaoAutorizado, obtido %v", err)
+	}
+}
+
+func TestRenovarRefreshExpiradoRetornaNaoAutorizado(t *testing.T) {
+	svc := NovoServico(Config{
+		SegredoJWT:  []byte(SEGREDO_DEMO),
+		TokenMestre: TOKEN_MESTRE_DEMO,
+		SenhaLogin:  SENHA_DEMO,
+		TTLAcesso:   time.Hour,
+		TTLRefresh:  time.Millisecond,
+	})
+
+	credenciais, err := svc.Autenticar(SENHA_DEMO)
 	if err != nil {
 		t.Fatalf("setup falhou: %v", err)
 	}
 	time.Sleep(5 * time.Millisecond)
 
-	if svc.TokenValido(token) {
-		t.Error("token deveria ter expirado")
+	if _, err := svc.Renovar(credenciais.TokenRefresh); !errors.Is(err, ErroNaoAutorizado) {
+		t.Errorf("refresh expirado deveria ser inválido, obtido %v", err)
 	}
 }
 
-func TestRevogarRemoveSessao(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
+func TestRevogarInvalidaRefreshToken(t *testing.T) {
+	svc := servicoDeTeste()
 
-	token, _, err := svc.Autenticar(SENHA_DEMO)
+	credenciais, err := svc.Autenticar(SENHA_DEMO)
 	if err != nil {
 		t.Fatalf("setup falhou: %v", err)
 	}
-	svc.Revogar(token)
+	svc.Revogar(credenciais.TokenRefresh)
 
-	if svc.TokenValido(token) {
-		t.Error("sessão revogada não deveria ser válida")
+	if _, err := svc.Renovar(credenciais.TokenRefresh); !errors.Is(err, ErroNaoAutorizado) {
+		t.Errorf("refresh revogado deveria ser inválido, obtido %v", err)
 	}
 }
 
-func TestRevogarNaoAfetaTokenMestre(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
-	svc.Revogar(TOKEN_MESTRE_DEMO)
+// ----- Handlers /login, /refresh, /logout -----
 
-	if !svc.TokenValido(TOKEN_MESTRE_DEMO) {
-		t.Error("token mestre não deveria ser revogável")
+func TestHandlerLoginRetornaCredenciais(t *testing.T) {
+	h := NovoHandler(servicoDeTeste())
+
+	resposta := executarJSON(t, h.login, http.MethodPost, ROTA_LOGIN, EntradaLogin{Senha: SENHA_DEMO})
+	if resposta.Code != http.StatusOK {
+		t.Fatalf("esperado 200, obtido %d", resposta.Code)
 	}
-}
 
-// ----- Handler POST /login -----
-
-func TestHandlerLoginRetornaToken(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
-	h := NovoHandler(svc)
-
-	corpo, _ := json.Marshal(EntradaLogin{Senha: SENHA_DEMO})
-	req := httptest.NewRequest(http.MethodPost, ROTA_LOGIN, bytes.NewReader(corpo))
-	rec := httptest.NewRecorder()
-	h.login(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("esperado 200, obtido %d", rec.Code)
+	var sessao RespostaSessao
+	decodificar(t, resposta, &sessao)
+	if sessao.Token == "" || sessao.TokenRefresh == "" {
+		t.Error("login deveria devolver token e refresh_token")
 	}
-	var resposta RespostaLogin
-	if err := json.Unmarshal(rec.Body.Bytes(), &resposta); err != nil {
-		t.Fatalf("resposta inválida: %v", err)
-	}
-	if resposta.Token == "" {
-		t.Error("token deveria estar presente na resposta")
-	}
-	if !svc.TokenValido(resposta.Token) {
-		t.Error("token devolvido deveria ser aceito por TokenValido")
+	if sessao.Tipo != TIPO_BEARER {
+		t.Errorf("tipo esperado %q, obtido %q", TIPO_BEARER, sessao.Tipo)
 	}
 }
 
 func TestHandlerLoginSenhaErradaRetorna401(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
-	h := NovoHandler(svc)
+	h := NovoHandler(servicoDeTeste())
 
-	corpo, _ := json.Marshal(EntradaLogin{Senha: "errada"})
-	req := httptest.NewRequest(http.MethodPost, ROTA_LOGIN, bytes.NewReader(corpo))
-	rec := httptest.NewRecorder()
-	h.login(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("esperado 401, obtido %d", rec.Code)
+	resposta := executarJSON(t, h.login, http.MethodPost, ROTA_LOGIN, EntradaLogin{Senha: "errada"})
+	if resposta.Code != http.StatusUnauthorized {
+		t.Errorf("esperado 401, obtido %d", resposta.Code)
 	}
 }
 
 func TestHandlerLoginSenhaVaziaRetorna400(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
+	h := NovoHandler(servicoDeTeste())
+
+	resposta := executarJSON(t, h.login, http.MethodPost, ROTA_LOGIN, EntradaLogin{Senha: ""})
+	if resposta.Code != http.StatusBadRequest {
+		t.Errorf("esperado 400, obtido %d", resposta.Code)
+	}
+}
+
+func TestHandlerRenovarRetornaNovasCredenciais(t *testing.T) {
+	svc := servicoDeTeste()
 	h := NovoHandler(svc)
 
-	corpo, _ := json.Marshal(EntradaLogin{Senha: ""})
-	req := httptest.NewRequest(http.MethodPost, ROTA_LOGIN, bytes.NewReader(corpo))
-	rec := httptest.NewRecorder()
-	h.login(rec, req)
+	credenciais, err := svc.Autenticar(SENHA_DEMO)
+	if err != nil {
+		t.Fatalf("setup falhou: %v", err)
+	}
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("esperado 400, obtido %d", rec.Code)
+	resposta := executarJSON(t, h.renovar, http.MethodPost, ROTA_REFRESH, EntradaRefresh{TokenRefresh: credenciais.TokenRefresh})
+	if resposta.Code != http.StatusOK {
+		t.Fatalf("esperado 200, obtido %d", resposta.Code)
+	}
+
+	var sessao RespostaSessao
+	decodificar(t, resposta, &sessao)
+	if !svc.TokenValido(sessao.Token) {
+		t.Error("token renovado deveria ser válido")
+	}
+}
+
+func TestHandlerRenovarTokenInvalidoRetorna401(t *testing.T) {
+	h := NovoHandler(servicoDeTeste())
+
+	resposta := executarJSON(t, h.renovar, http.MethodPost, ROTA_REFRESH, EntradaRefresh{TokenRefresh: "invalido"})
+	if resposta.Code != http.StatusUnauthorized {
+		t.Errorf("esperado 401, obtido %d", resposta.Code)
+	}
+}
+
+func TestHandlerLogoutRevogaRefresh(t *testing.T) {
+	svc := servicoDeTeste()
+	h := NovoHandler(svc)
+
+	credenciais, err := svc.Autenticar(SENHA_DEMO)
+	if err != nil {
+		t.Fatalf("setup falhou: %v", err)
+	}
+
+	resposta := executarJSON(t, h.logout, http.MethodPost, ROTA_LOGOUT, EntradaRefresh{TokenRefresh: credenciais.TokenRefresh})
+	if resposta.Code != http.StatusOK {
+		t.Fatalf("esperado 200, obtido %d", resposta.Code)
+	}
+	if _, err := svc.Renovar(credenciais.TokenRefresh); !errors.Is(err, ErroNaoAutorizado) {
+		t.Error("refresh deveria estar revogado após logout")
 	}
 }
 
 // ----- Middleware Proteger -----
 
 func TestMiddlewareSemHeaderRetorna401(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
-	protegido := Proteger(svc)(handlerOkDeTeste())
+	protegido := Proteger(servicoDeTeste())(handlerOkDeTeste())
 
 	req := httptest.NewRequest(http.MethodGet, "/protegido", nil)
 	rec := httptest.NewRecorder()
@@ -184,8 +275,7 @@ func TestMiddlewareSemHeaderRetorna401(t *testing.T) {
 }
 
 func TestMiddlewareTokenMestreLiberaAcesso(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
-	protegido := Proteger(svc)(handlerOkDeTeste())
+	protegido := Proteger(servicoDeTeste())(handlerOkDeTeste())
 
 	req := httptest.NewRequest(http.MethodGet, "/protegido", nil)
 	req.Header.Set(HEADER_AUTORIZACAO, PREFIXO_BEARER+TOKEN_MESTRE_DEMO)
@@ -197,9 +287,27 @@ func TestMiddlewareTokenMestreLiberaAcesso(t *testing.T) {
 	}
 }
 
-func TestMiddlewareTokenInvalidoRetorna401(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
+func TestMiddlewareAccessTokenLiberaAcesso(t *testing.T) {
+	svc := servicoDeTeste()
 	protegido := Proteger(svc)(handlerOkDeTeste())
+
+	credenciais, err := svc.Autenticar(SENHA_DEMO)
+	if err != nil {
+		t.Fatalf("setup falhou: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/protegido", nil)
+	req.Header.Set(HEADER_AUTORIZACAO, PREFIXO_BEARER+credenciais.TokenAcesso)
+	rec := httptest.NewRecorder()
+	protegido.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("esperado 200 com access token, obtido %d (body: %s)", rec.Code, rec.Body)
+	}
+}
+
+func TestMiddlewareTokenInvalidoRetorna401(t *testing.T) {
+	protegido := Proteger(servicoDeTeste())(handlerOkDeTeste())
 
 	req := httptest.NewRequest(http.MethodGet, "/protegido", nil)
 	req.Header.Set(HEADER_AUTORIZACAO, PREFIXO_BEARER+"chave-invalida")
@@ -212,8 +320,7 @@ func TestMiddlewareTokenInvalidoRetorna401(t *testing.T) {
 }
 
 func TestMiddlewareSemPrefixoBearerRetorna401(t *testing.T) {
-	svc := NovoServico(TOKEN_MESTRE_DEMO, SENHA_DEMO, time.Hour)
-	protegido := Proteger(svc)(handlerOkDeTeste())
+	protegido := Proteger(servicoDeTeste())(handlerOkDeTeste())
 
 	req := httptest.NewRequest(http.MethodGet, "/protegido", nil)
 	req.Header.Set(HEADER_AUTORIZACAO, TOKEN_MESTRE_DEMO) // faltando "Bearer "
@@ -225,7 +332,26 @@ func TestMiddlewareSemPrefixoBearerRetorna401(t *testing.T) {
 	}
 }
 
-// ----- Mocks (handlers no final) -----
+// ----- Mocks e helpers (no final) -----
+
+func executarJSON(t *testing.T, handler http.HandlerFunc, metodo, rota string, corpo any) *httptest.ResponseRecorder {
+	t.Helper()
+	bruto, err := json.Marshal(corpo)
+	if err != nil {
+		t.Fatalf("falha ao serializar corpo: %v", err)
+	}
+	req := httptest.NewRequest(metodo, rota, bytes.NewReader(bruto))
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	return rec
+}
+
+func decodificar(t *testing.T, rec *httptest.ResponseRecorder, destino any) {
+	t.Helper()
+	if err := json.Unmarshal(rec.Body.Bytes(), destino); err != nil {
+		t.Fatalf("resposta inválida: %v", err)
+	}
+}
 
 func handlerOkDeTeste() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
