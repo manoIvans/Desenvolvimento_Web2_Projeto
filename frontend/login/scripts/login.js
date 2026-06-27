@@ -10,6 +10,9 @@
 
   const URL_PAINEL = '/painel/';
   const ROTA_LOGIN = '/login';
+  const CHAVE_TOKEN   = 'signalhubToken';
+  const CHAVE_REFRESH = 'signalhubRefresh';
+  const CHAVE_EXPIRA  = 'signalhubExpira';
 
 
   // ----- Bootstrap -----
@@ -63,6 +66,13 @@
       throw new Error(corpo?.error || `${resp.status} ${resp.statusText}`);
     }
     return await resp.json();
+  }
+
+
+  function guardarSessao(resposta) {
+    localStorage.setItem(CHAVE_TOKEN, resposta.token);
+    localStorage.setItem(CHAVE_REFRESH, resposta.refresh_token || '');
+    localStorage.setItem(CHAVE_EXPIRA, resposta.expira_em || '');
   }
 
 

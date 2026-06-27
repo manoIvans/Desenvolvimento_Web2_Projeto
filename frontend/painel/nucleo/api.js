@@ -19,9 +19,12 @@ const SignalApi = (function () {
     InstanciasMsp:    '/mspclouds/instancias',
   };
 
-  const URL_LOGIN    = '/login/';
-  const ROTA_REFRESH = '/refresh';
-  const ROTA_LOGOUT  = '/logout';
+  const CHAVE_TOKEN   = 'signalhubToken';
+  const CHAVE_REFRESH = 'signalhubRefresh';
+  const CHAVE_EXPIRA  = 'signalhubExpira';
+  const URL_LOGIN     = '/login/';
+  const ROTA_REFRESH  = '/refresh';
+  const ROTA_LOGOUT   = '/logout';
 
   const TIMEOUT_REQUISICAO_MS = 20000;
 
@@ -41,7 +44,9 @@ const SignalApi = (function () {
 
   function Sair() {
     revogarRefreshRemoto();
-    SignalSessao.Limpar();
+    localStorage.removeItem(CHAVE_TOKEN);
+    localStorage.removeItem(CHAVE_REFRESH);
+    localStorage.removeItem(CHAVE_EXPIRA);
     if (window.location.pathname.startsWith('/login')) return;
     window.location.replace(URL_LOGIN);
   }
@@ -49,20 +54,8 @@ const SignalApi = (function () {
 
   // ----- Renovação de sessão (refresh token) -----
 
-  // renovarSessao garante uma única renovação concorrente: chamadas
-  // simultâneas aguardam a mesma promessa em vez de gastar o refresh token.
   async function renovarSessao() {
-    if (!renovacaoEmAndamento) {
-      renovacaoEmAndamento = executarRenovacao().finally(() => {
-        renovacaoEmAndamento = null;
-      });
-    }
-    return await renovacaoEmAndamento;
-  }
-
-
-  async function executarRenovacao() {
-    const refresh = SignalSessao.Refresh();
+    const refresh = localStorage.getItem(CHAVE_REFRESH);
     if (!refresh) return false;
 
     try {
@@ -72,7 +65,7 @@ const SignalApi = (function () {
         body: JSON.stringify({ refresh_token: refresh }),
       });
       if (!resp.ok) return false;
-      SignalSessao.Guardar(await resp.json());
+      guardarSessao(await resp.json());
       return true;
     } catch (_) {
       return false;
@@ -80,8 +73,16 @@ const SignalApi = (function () {
   }
 
 
+  function guardarSessao(dados) {
+    if (!dados || !dados.token) return;
+    localStorage.setItem(CHAVE_TOKEN, dados.token);
+    localStorage.setItem(CHAVE_EXPIRA, dados.expira_em || '');
+    if (dados.refresh_token) localStorage.setItem(CHAVE_REFRESH, dados.refresh_token);
+  }
+
+
   function revogarRefreshRemoto() {
-    const refresh = SignalSessao.Refresh();
+    const refresh = localStorage.getItem(CHAVE_REFRESH);
     if (!refresh) return;
     // keepalive garante o envio mesmo durante a navegação que segue o logout.
     fetch(ROTA_LOGOUT, {
