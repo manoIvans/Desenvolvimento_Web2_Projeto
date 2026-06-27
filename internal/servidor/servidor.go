@@ -23,6 +23,7 @@ import (
 	"SignalHub/internal/instancias"
 	"SignalHub/internal/mspclouds"
 	"SignalHub/internal/saude"
+	"SignalHub/internal/seguranca"
 	"SignalHub/internal/zabbix"
 )
 
@@ -32,6 +33,11 @@ const (
 	TIMEOUT_SHUTDOWN    = 15 * time.Second
 	TIMEOUT_READ_HEADER = 10 * time.Second
 	CORS_MAX_AGE        = 300
+
+	// Rate limiting das rotas de autenticação: até 10 tentativas em rajada,
+	// repostas a 1 token a cada 5s (~12/min sustentado) por IP de origem.
+	LIMITE_AUTH_CAPACIDADE          = 10
+	LIMITE_AUTH_RECARGA_POR_SEGUNDO = 0.2
 )
 
 var CORS_METODOS_PERMITIDOS = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
@@ -87,6 +93,7 @@ func registrarMiddlewares(r chi.Router) {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
+	r.Use(seguranca.CabecalhosSeguranca)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   CORS_ORIGENS_PERMITIDAS,
 		AllowedMethods:   CORS_METODOS_PERMITIDOS,
@@ -98,13 +105,20 @@ func registrarMiddlewares(r chi.Router) {
 
 // registrarRotas isola três zonas:
 //
-//  1. Públicas: /healthz (liveness) e POST /login.
-//  2. Protegidas por Bearer token: agregadores de alertas e todos os CRUDs.
-//  3. Frontend estático (público): /* serve o painel HTML/CSS/JS, que faz
+//  1. Públicas com rate limiting: /login, /refresh e /logout — protegidas
+//     contra força bruta por um token bucket por IP.
+//  2. Pública sem limite: /healthz (liveness).
+//  3. Protegidas por Bearer token: agregadores de alertas e todos os CRUDs.
+//  4. Frontend estático (público): /* serve o painel HTML/CSS/JS, que faz
 //     seu próprio gate de autenticação chamando a API com o token.
 func registrarRotas(r chi.Router, deps Dependencias) {
 	saude.Rotas(r)
-	deps.HandlerAutenticacao.Rotas(r)
+
+	limitadorAuth := seguranca.NovoLimitador(LIMITE_AUTH_CAPACIDADE, LIMITE_AUTH_RECARGA_POR_SEGUNDO)
+	r.Group(func(autenticacaoRotas chi.Router) {
+		autenticacaoRotas.Use(limitadorAuth.Middleware)
+		deps.HandlerAutenticacao.Rotas(autenticacaoRotas)
+	})
 
 	r.Group(func(protegido chi.Router) {
 		protegido.Use(autenticacao.Proteger(deps.ServicoAutenticacao))

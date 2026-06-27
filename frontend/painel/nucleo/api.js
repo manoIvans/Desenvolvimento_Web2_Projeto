@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════
 //  nucleo/api.js — Wrapper de chamadas HTTP ao backend SignalHub
 //  · Injeta Authorization: Bearer <token> nas rotas protegidas
-//  · Em 401, limpa a sessão local e redireciona para /login/
+//  · Em 401, tenta renovar a sessão (refresh token) e repete a chamada;
+//    se a renovação falhar, limpa a sessão e redireciona para /login/
 // ═══════════════════════════════════════════════
 
 const SignalApi = (function () {
@@ -18,25 +19,77 @@ const SignalApi = (function () {
     InstanciasMsp:    '/mspclouds/instancias',
   };
 
-  const CHAVE_TOKEN  = 'signalhubToken';
-  const CHAVE_EXPIRA = 'signalhubExpira';
   const URL_LOGIN    = '/login/';
+  const ROTA_REFRESH = '/refresh';
+  const ROTA_LOGOUT  = '/logout';
 
   const TIMEOUT_REQUISICAO_MS = 20000;
+
+  // Renovação em curso — coalesce 401s simultâneos para que apenas um
+  // /refresh seja disparado. O refresh token é de uso único (rotacionado a
+  // cada troca); chamadas paralelas com o mesmo token invalidariam umas às
+  // outras e derrubariam a sessão.
+  let renovacaoEmAndamento = null;
 
 
   // ----- Sessão -----
 
   function TokenAtual() {
-    return localStorage.getItem(CHAVE_TOKEN);
+    return SignalSessao.Token();
   }
 
 
   function Sair() {
-    localStorage.removeItem(CHAVE_TOKEN);
-    localStorage.removeItem(CHAVE_EXPIRA);
+    revogarRefreshRemoto();
+    SignalSessao.Limpar();
     if (window.location.pathname.startsWith('/login')) return;
     window.location.replace(URL_LOGIN);
+  }
+
+
+  // ----- Renovação de sessão (refresh token) -----
+
+  // renovarSessao garante uma única renovação concorrente: chamadas
+  // simultâneas aguardam a mesma promessa em vez de gastar o refresh token.
+  async function renovarSessao() {
+    if (!renovacaoEmAndamento) {
+      renovacaoEmAndamento = executarRenovacao().finally(() => {
+        renovacaoEmAndamento = null;
+      });
+    }
+    return await renovacaoEmAndamento;
+  }
+
+
+  async function executarRenovacao() {
+    const refresh = SignalSessao.Refresh();
+    if (!refresh) return false;
+
+    try {
+      const resp = await fetch(ROTA_REFRESH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (!resp.ok) return false;
+      SignalSessao.Guardar(await resp.json());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+
+  function revogarRefreshRemoto() {
+    const refresh = SignalSessao.Refresh();
+    if (!refresh) return;
+    // keepalive garante o envio mesmo durante a navegação que segue o logout.
+    fetch(ROTA_LOGOUT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refresh }),
+      keepalive: true,
+    }).catch(() => {});
   }
 
 
@@ -130,7 +183,7 @@ const SignalApi = (function () {
 
   // ----- Internos -----
 
-  async function chamarAhRota(rota, metodo, corpo) {
+  async function chamarAhRota(rota, metodo, corpo, jaRenovou = false) {
     const controlador = new AbortController();
     const idTimeout = setTimeout(() => controlador.abort(), TIMEOUT_REQUISICAO_MS);
 
@@ -150,6 +203,9 @@ const SignalApi = (function () {
     try {
       const resp = await fetch(rota, opcoes);
       if (resp.status === 401) {
+        if (!jaRenovou && await renovarSessao()) {
+          return await chamarAhRota(rota, metodo, corpo, true);
+        }
         Sair();
         throw new Error('Sessão expirada. Faça login novamente.');
       }

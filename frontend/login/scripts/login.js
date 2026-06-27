@@ -8,16 +8,14 @@
 
   // ----- Constantes -----
 
-  const CHAVE_TOKEN  = 'signalhubToken';
-  const CHAVE_EXPIRA = 'signalhubExpira';
-  const URL_PAINEL   = '/painel/';
-  const ROTA_LOGIN   = '/login';
+  const URL_PAINEL = '/painel/';
+  const ROTA_LOGIN = '/login';
 
 
   // ----- Bootstrap -----
 
   function inicializar() {
-    if (jaTemSessaoValida()) {
+    if (SignalSessao.Ativa()) {
       window.location.replace(URL_PAINEL);
       return;
     }
@@ -42,7 +40,7 @@
 
     try {
       const resposta = await chamarApiLogin(senha);
-      guardarSessao(resposta);
+      SignalSessao.Guardar(resposta);
       window.location.replace(URL_PAINEL);
     } catch (erro) {
       exibirMensagem(mensagemDeErro(erro), 'erro');
@@ -68,22 +66,7 @@
   }
 
 
-  function guardarSessao(resposta) {
-    localStorage.setItem(CHAVE_TOKEN, resposta.token);
-    localStorage.setItem(CHAVE_EXPIRA, resposta.expira_em || '');
-  }
-
-
   // ----- Utilitários -----
-
-  function jaTemSessaoValida() {
-    const token  = localStorage.getItem(CHAVE_TOKEN);
-    const expira = localStorage.getItem(CHAVE_EXPIRA);
-    if (!token) return false;
-    if (!expira) return true;
-    return new Date(expira) > new Date();
-  }
-
 
   function lerSenha(formulario) {
     const campo = formulario.elements.namedItem('senha');

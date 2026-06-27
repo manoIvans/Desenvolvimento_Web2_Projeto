@@ -10,18 +10,10 @@
            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
            color: #6b6b7a; font-size: .9rem; }
   </style>
+  <script src="nucleo/sessao.js"></script>
   <script>
     // Bootstrap: decide entre /painel/ e /login/ conforme a sessão local.
-    (function () {
-      const CHAVE_TOKEN  = 'signalhubToken';
-      const CHAVE_EXPIRA = 'signalhubExpira';
-
-      const token  = localStorage.getItem(CHAVE_TOKEN);
-      const expira = localStorage.getItem(CHAVE_EXPIRA);
-      const valido = token && (!expira || new Date(expira) > new Date());
-
-      window.location.replace(valido ? '/painel/' : '/login/');
-    })();
+    window.location.replace(SignalSessao.Ativa() ? '/painel/' : '/login/');
   </script>
 </head>
 <body>redirecionando…</body>
