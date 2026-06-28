@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"SignalHub/internal/acronis"
 	"SignalHub/internal/autenticacao"
 	"SignalHub/internal/banco"
 	"SignalHub/internal/filtros"
@@ -39,10 +40,20 @@ const (
 
 	VAR_AMBIENTE_SENHA_LOGIN  = "SIGNALHUB_SENHA_LOGIN"
 	VAR_AMBIENTE_TOKEN_MESTRE = "SIGNALHUB_TOKEN_MESTRE"
-	VAR_AMBIENTE_TTL_TOKEN    = "SIGNALHUB_TTL_TOKEN_SEGUNDOS"
-	SENHA_LOGIN_PADRAO        = "umasenhacriativa"
-	TOKEN_MESTRE_PADRAO       = "mestre-signalhub-imortal"
-	TTL_TOKEN_PADRAO          = time.Hour
+	VAR_AMBIENTE_SEGREDO_JWT  = "SIGNALHUB_SEGREDO_JWT"
+	VAR_AMBIENTE_TTL_ACESSO   = "SIGNALHUB_TTL_TOKEN_SEGUNDOS"
+	VAR_AMBIENTE_TTL_REFRESH  = "SIGNALHUB_TTL_REFRESH_SEGUNDOS"
+
+	VAR_AMBIENTE_ACRONIS_URL           = "SIGNALHUB_ACRONIS_URL"
+	VAR_AMBIENTE_ACRONIS_LOGIN         = "SIGNALHUB_ACRONIS_LOGIN"
+	VAR_AMBIENTE_ACRONIS_CLIENT_ID     = "SIGNALHUB_ACRONIS_CLIENT_ID"
+	VAR_AMBIENTE_ACRONIS_CLIENT_SECRET = "SIGNALHUB_ACRONIS_CLIENT_SECRET"
+
+	SENHA_LOGIN_PADRAO  = "umasenhacriativa"
+	TOKEN_MESTRE_PADRAO = "mestre-signalhub-imortal"
+	SEGREDO_JWT_PADRAO  = "segredo-jwt-de-desenvolvimento"
+	TTL_ACESSO_PADRAO   = time.Hour
+	TTL_REFRESH_PADRAO  = 24 * time.Hour
 )
 
 //go:embed db/schema
@@ -57,10 +68,11 @@ func main() {
 	defer bd.Fechar()
 
 	servicoZabbix, servicoMsp := construirServicos(bd)
+	servicoAcronis := construirServicoAcronis()
 	servicoAuth := construirServicoAutenticacao()
-	aquecerCachesIniciais(servicoZabbix, servicoMsp)
+	aquecerCachesIniciais(servicoZabbix, servicoMsp, servicoAcronis)
 
-	srv := iniciarServidor(resolverEndereco(), bd, servicoZabbix, servicoMsp, servicoAuth)
+	srv := iniciarServidor(resolverEndereco(), bd, servicoZabbix, servicoMsp, servicoAcronis, servicoAuth)
 	aguardarShutdown(srv)
 }
 
@@ -166,9 +178,27 @@ func carregarChavesMsp(contexto context.Context, bd *banco.Banco) []string {
 	return chaves
 }
 
+// construirServicoAcronis lê as credenciais Acronis do ambiente. Sem
+// credenciais (caso padrão), entra em modo demonstração com dados mock —
+// como Zabbix e MSP fazem quando o banco está vazio.
+func construirServicoAcronis() *acronis.Servico {
+	servicoAcronis := acronis.NovoServico(acronis.Conta{
+		ServerURL:    os.Getenv(VAR_AMBIENTE_ACRONIS_URL),
+		Login:        os.Getenv(VAR_AMBIENTE_ACRONIS_LOGIN),
+		ClientID:     os.Getenv(VAR_AMBIENTE_ACRONIS_CLIENT_ID),
+		ClientSecret: os.Getenv(VAR_AMBIENTE_ACRONIS_CLIENT_SECRET),
+	}, nil)
+
+	if !servicoAcronis.Configurado() {
+		servicoAcronis.AtivarModoDemo(acronis.MocksDemonstracao())
+		slog.Warn("nenhuma conta Acronis configurada — modo demonstração ativo")
+	}
+	return servicoAcronis
+}
+
 // ----- Refresh inicial -----
 
-func aquecerCachesIniciais(servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico) {
+func aquecerCachesIniciais(servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico, servicoAcronis *acronis.Servico) {
 	var wgRefresh sync.WaitGroup
 
 	if servicoZabbix.Configurado() {
@@ -184,6 +214,14 @@ func aquecerCachesIniciais(servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.
 		go func() {
 			defer wgRefresh.Done()
 			aquecerMsp(servicoMsp)
+		}()
+	}
+
+	if servicoAcronis.Configurado() {
+		wgRefresh.Add(1)
+		go func() {
+			defer wgRefresh.Done()
+			aquecerAcronis(servicoAcronis)
 		}()
 	}
 
@@ -206,12 +244,21 @@ func aquecerMsp(servicoMsp *mspclouds.Servico) {
 	slog.Info("refresh inicial MSP Clouds concluído")
 }
 
+func aquecerAcronis(servicoAcronis *acronis.Servico) {
+	if _, err := servicoAcronis.AtualizarERetornar(); err != nil {
+		slog.Warn("refresh inicial Acronis falhou", "erro", err)
+		return
+	}
+	slog.Info("refresh inicial Acronis concluído")
+}
+
 // ----- Servidor HTTP -----
 
-func iniciarServidor(endereco string, bd *banco.Banco, servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico, servicoAuth *autenticacao.Servico) *servidor.Servidor {
+func iniciarServidor(endereco string, bd *banco.Banco, servicoZabbix *zabbix.Servico, servicoMsp *mspclouds.Servico, servicoAcronis *acronis.Servico, servicoAuth *autenticacao.Servico) *servidor.Servidor {
 	router := servidor.MontarRouter(servidor.Dependencias{
 		HandlerZabbix:       zabbix.NovoHandler(servicoZabbix),
 		HandlerMsp:          mspclouds.NovoHandler(servicoMsp),
+		HandlerAcronis:      acronis.NovoHandler(servicoAcronis),
 		HandlerInstancias:   instancias.NovoHandler(instancias.NovoServico(bd.Consultas)),
 		HandlerFiltros:      filtros.NovoHandler(filtros.NovoServico(bd.Consultas)),
 		HandlerAutenticacao: autenticacao.NovoHandler(servicoAuth),
@@ -230,31 +277,58 @@ func iniciarServidor(endereco string, bd *banco.Banco, servicoZabbix *zabbix.Ser
 
 // ----- Autenticação -----
 
-// construirServicoAutenticacao lê senha de login, token mestre e TTL do
-// ambiente. Sem env vars, usa os defaults — e loga em WARN para deixar
-// claro que rodar em produção sem sobrescrever é inseguro.
+// construirServicoAutenticacao lê senha de login, token mestre, segredo de
+// assinatura JWT e os TTLs de access/refresh do ambiente. Sem env vars, usa
+// os defaults — e loga em WARN para deixar claro que valores padrão estão em
+// uso.
 func construirServicoAutenticacao() *autenticacao.Servico {
-	senha := os.Getenv(VAR_AMBIENTE_SENHA_LOGIN)
-	if senha == "" {
-		senha = SENHA_LOGIN_PADRAO
-		slog.Warn("usando SENHA_LOGIN_PADRAO — defina " + VAR_AMBIENTE_SENHA_LOGIN + " em produção")
-	}
+	senha := segredoDoAmbiente(VAR_AMBIENTE_SENHA_LOGIN, SENHA_LOGIN_PADRAO)
+	segredoJWT := segredoDoAmbiente(VAR_AMBIENTE_SEGREDO_JWT, SEGREDO_JWT_PADRAO)
+	tokenMestre := valorDoAmbiente(VAR_AMBIENTE_TOKEN_MESTRE, TOKEN_MESTRE_PADRAO)
 
-	tokenMestre := os.Getenv(VAR_AMBIENTE_TOKEN_MESTRE)
-	if tokenMestre == "" {
-		tokenMestre = TOKEN_MESTRE_PADRAO
-		slog.Warn("usando TOKEN_MESTRE_PADRAO — defina " + VAR_AMBIENTE_TOKEN_MESTRE + " em produção")
-	}
+	ttlAcesso := ttlDoAmbiente(VAR_AMBIENTE_TTL_ACESSO, TTL_ACESSO_PADRAO)
+	ttlRefresh := ttlDoAmbiente(VAR_AMBIENTE_TTL_REFRESH, TTL_REFRESH_PADRAO)
 
-	ttl := TTL_TOKEN_PADRAO
-	if bruto := os.Getenv(VAR_AMBIENTE_TTL_TOKEN); bruto != "" {
-		if segundos, err := strconv.Atoi(bruto); err == nil && segundos > 0 {
-			ttl = time.Duration(segundos) * time.Second
-		}
-	}
+	slog.Info("autenticação ativa", "ttl_acesso", ttlAcesso.String(), "ttl_refresh", ttlRefresh.String())
+	return autenticacao.NovoServico(autenticacao.Config{
+		SegredoJWT:  []byte(segredoJWT),
+		TokenMestre: tokenMestre,
+		SenhaLogin:  senha,
+		TTLAcesso:   ttlAcesso,
+		TTLRefresh:  ttlRefresh,
+	})
+}
 
-	slog.Info("autenticação ativa", "ttl_token", ttl.String())
-	return autenticacao.NovoServico(tokenMestre, senha, ttl)
+// segredoDoAmbiente devolve a env var quando definida, ou o padrão — caso em
+// que loga um WARN para sinalizar que um valor padrão está em uso.
+func segredoDoAmbiente(envVar, padrao string) string {
+	if valor := os.Getenv(envVar); valor != "" {
+		return valor
+	}
+	slog.Warn("usando valor padrão — defina " + envVar + " para sobrescrever")
+	return padrao
+}
+
+// valorDoAmbiente devolve a env var quando definida, ou o padrão.
+func valorDoAmbiente(envVar, padrao string) string {
+	if valor := os.Getenv(envVar); valor != "" {
+		return valor
+	}
+	return padrao
+}
+
+// ttlDoAmbiente lê uma duração em segundos da env var, caindo no padrão
+// quando ausente ou inválida.
+func ttlDoAmbiente(envVar string, padrao time.Duration) time.Duration {
+	bruto := os.Getenv(envVar)
+	if bruto == "" {
+		return padrao
+	}
+	segundos, err := strconv.Atoi(bruto)
+	if err != nil || segundos <= 0 {
+		return padrao
+	}
+	return time.Duration(segundos) * time.Second
 }
 
 // ----- Shutdown -----

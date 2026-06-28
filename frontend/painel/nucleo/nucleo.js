@@ -26,8 +26,8 @@
   // ----- Bootstrap -----
 
   async function inicializar() {
-    // Sem token → painel não tem o que fazer; volta pro login.
-    if (!SignalApi.TokenAtual()) {
+    // Sem sessão renovável → painel não tem o que fazer; volta pro login.
+    if (!SignalSessao.Ativa()) {
       window.location.replace(URL_LOGIN);
       return;
     }
