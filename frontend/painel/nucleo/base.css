@@ -1,4 +1,10 @@
-/* ----- Reset minimo ----- */
+/* ═══════════════════════════════════════════════
+   base.css — Reset, layout do painel (cabeçalho, navegação, conteúdo,
+   rodapé), grade de cards e estados (carregando/vazio/erro). Responsivo
+   e acessível. Usa os tokens de tema.css.
+   ═══════════════════════════════════════════════ */
+
+/* ----- Reset mínimo ----- */
 
 *,
 *::before,
@@ -6,36 +12,58 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 html, body {
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--fonte);
 }
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  background: var(--fundo);
+  color: var(--texto);
+  font-size: .95rem;
+  line-height: 1.45;
+}
+
+/* Acessibilidade: foco visível consistente em tudo que é interativo. */
+:focus-visible {
+  outline: 2px solid var(--destaque);
+  outline-offset: 2px;
+  border-radius: var(--raio-1);
 }
 
 
-/* ----- Cabecalho ----- */
+/* ----- Cabeçalho ----- */
 
 .cabecalho {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-cabecalho);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 22px;
+  gap: var(--e3);
+  padding: var(--e3) clamp(var(--e3), 3vw, var(--e5));
   border-bottom: 1px solid var(--borda);
-  background: var(--superficie);
+  background: color-mix(in srgb, var(--superficie) 88%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .logotipo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--e2);
   font-weight: 700;
-  letter-spacing: .8px;
+  letter-spacing: .6px;
+  font-size: 1.05rem;
   color: var(--texto);
 }
 
@@ -44,35 +72,49 @@ body {
   height: 12px;
   border-radius: 50%;
   background: var(--destaque);
-  box-shadow: 0 0 6px var(--destaque);
-}
-
-.cabecalho-info {
-  font-size: .85rem;
-  color: var(--apagado);
+  box-shadow: 0 0 0 4px var(--destaque-suave);
 }
 
 .cabecalho-acoes {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--e2);
+  margin-left: auto;
 }
+
+.cabecalho-info {
+  font-size: .82rem;
+  color: var(--apagado);
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ----- Botões do cabeçalho ----- */
 
 .botao-atualizar,
-.botao-sair {
+.botao-sair,
+.botao-configuracoes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  min-height: 38px;
   background: var(--superficie);
   color: var(--texto);
-  border: 1px solid var(--borda);
-  padding: 6px 12px;
-  border-radius: 6px;
+  border: 1px solid var(--borda-forte);
+  padding: var(--e2) var(--e3);
+  border-radius: var(--raio-1);
   font-size: .85rem;
+  font-family: inherit;
   cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s;
+  transition: background var(--trans), color var(--trans), border-color var(--trans);
 }
 
-.botao-atualizar:hover {
+.botao-atualizar:hover,
+.botao-configuracoes:hover {
   color: var(--destaque);
   border-color: var(--destaque);
+  background: var(--destaque-suave);
 }
 
 .botao-sair:hover {
@@ -81,31 +123,37 @@ body {
 }
 
 .botao-atualizar:disabled,
-.botao-sair:disabled {
+.botao-sair:disabled,
+.botao-configuracoes:disabled {
   opacity: .55;
   cursor: progress;
 }
 
 
-/* ----- Navegacao ----- */
+/* ----- Navegação (abas) ----- */
 
 .navegacao {
   display: flex;
-  gap: 4px;
-  padding: 0 22px;
+  gap: var(--e1);
+  padding: 0 clamp(var(--e3), 3vw, var(--e5));
   background: var(--superficie);
   border-bottom: 1px solid var(--borda);
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .aba {
+  flex: 0 0 auto;
   background: transparent;
   border: 0;
-  padding: 12px 18px;
-  font-size: .95rem;
+  padding: var(--e3) var(--e4);
+  font-size: .92rem;
+  font-family: inherit;
   cursor: pointer;
   color: var(--apagado);
   border-bottom: 2px solid transparent;
-  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+  transition: color var(--trans), border-color var(--trans);
 }
 
 .aba:hover {
@@ -115,33 +163,74 @@ body {
 .aba.ativa {
   color: var(--destaque);
   border-bottom-color: var(--destaque);
+  font-weight: 600;
 }
 
 
-/* ----- Conteudo / Secoes ----- */
+/* ----- Conteúdo / Seções ----- */
 
 .conteudo {
   flex: 1;
-  padding: 22px;
-  background: var(--fundo);
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: clamp(var(--e4), 3vw, var(--e5));
 }
 
 .secao-cabecalho {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 14px;
+  gap: var(--e2);
+  margin-bottom: var(--e4);
 }
 
 .secao-cabecalho h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: var(--txt-secao);
   color: var(--texto);
 }
 
 .contador {
-  font-size: .85rem;
+  font-size: .8rem;
+  font-weight: 600;
   color: var(--apagado);
+  background: var(--superficie-2);
+  border: 1px solid var(--borda);
+  padding: var(--e1) var(--e3);
+  border-radius: var(--raio-pill);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ações no cabeçalho da seção (ex.: atalho de filtros no Zabbix). */
+.secao-cabecalho-acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.botao-secao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  min-height: 32px;
+  background: var(--superficie);
+  color: var(--texto);
+  border: 1px solid var(--borda-forte);
+  padding: var(--e1) var(--e3);
+  border-radius: var(--raio-1);
+  font-size: .82rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--trans), color var(--trans), border-color var(--trans);
+}
+
+.botao-secao:hover {
+  color: var(--destaque);
+  border-color: var(--destaque);
+  background: var(--destaque-suave);
 }
 
 .escondida {
@@ -150,27 +239,69 @@ body {
 
 .grade-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: var(--e4);
 }
+
+
+/* ----- Estados: vazio e erro ----- */
 
 .vazio {
   grid-column: 1 / -1;
   text-align: center;
-  padding: 40px 20px;
+  padding: var(--e6) var(--e4);
   color: var(--apagado);
-  border: 1px dashed var(--borda);
-  border-radius: 8px;
+  border: 1px dashed var(--borda-forte);
+  border-radius: var(--raio-2);
+  background: var(--superficie-2);
+}
+
+.vazio-erro {
+  color: var(--erro-texto);
+  border-color: var(--gravidade-desastre);
+  background: var(--erro-fundo);
 }
 
 
-/* ----- Rodape ----- */
+/* ----- Estado: carregando (esqueleto) ----- */
+
+.esqueleto {
+  height: 124px;
+  border-radius: var(--raio-2);
+  border: 1px solid var(--borda);
+  background:
+    linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--superficie-2) 60%, var(--borda)) 50%, transparent 70%),
+    var(--superficie);
+  background-size: 200% 100%;
+  animation: brilho 1.2s ease-in-out infinite;
+}
+
+@keyframes brilho {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+
+/* ----- Rodapé ----- */
 
 .rodape {
   text-align: center;
-  padding: 14px;
-  font-size: .8rem;
+  padding: var(--e4);
+  font-size: .78rem;
   color: var(--apagado);
   border-top: 1px solid var(--borda);
   background: var(--superficie);
+}
+
+
+/* ----- Movimento reduzido ----- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
 }

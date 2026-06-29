@@ -8,6 +8,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AcronisConta struct {
+	ID           int32              `json:"id"`
+	Nome         string             `json:"nome"`
+	ServerUrl    string             `json:"server_url"`
+	Login        string             `json:"login"`
+	ClientID     string             `json:"client_id"`
+	ClientSecret string             `json:"client_secret"`
+	CriadoEm     pgtype.Timestamptz `json:"criado_em"`
+	AtualizadoEm pgtype.Timestamptz `json:"atualizado_em"`
+}
+
 type Filtro struct {
 	ID           int32              `json:"id"`
 	InstanciaID  int32              `json:"instancia_id"`

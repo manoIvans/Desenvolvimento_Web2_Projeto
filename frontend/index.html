@@ -4,25 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SignalHub</title>
-  <style>
-    html, body { margin: 0; padding: 0; height: 100%; background: #f7f7fa; }
-    body { display: flex; align-items: center; justify-content: center;
-           font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-           color: #6b6b7a; font-size: .9rem; }
-  </style>
-  <script>
-    // Bootstrap: decide entre /painel/ e /login/ conforme a sessão local.
-    (function () {
-      const CHAVE_TOKEN  = 'signalhubToken';
-      const CHAVE_EXPIRA = 'signalhubExpira';
-
-      const token  = localStorage.getItem(CHAVE_TOKEN);
-      const expira = localStorage.getItem(CHAVE_EXPIRA);
-      const valido = token && (!expira || new Date(expira) > new Date());
-
-      window.location.replace(valido ? '/painel/' : '/login/');
-    })();
-  </script>
+  <link rel="stylesheet" href="nucleo/bootstrap.css" />
+  <script src="nucleo/sessao.js"></script>
+  <script src="nucleo/bootstrap.js"></script>
 </head>
 <body>redirecionando…</body>
 </html>

@@ -9,12 +9,19 @@ import (
 )
 
 type Querier interface {
+	AtualizarAcronisConta(ctx context.Context, arg AtualizarAcronisContaParams) (AcronisConta, error)
 	AtualizarFiltro(ctx context.Context, arg AtualizarFiltroParams) (Filtro, error)
 	AtualizarMspInstancia(ctx context.Context, arg AtualizarMspInstanciaParams) (MspInstancia, error)
 	AtualizarZabbixInstancia(ctx context.Context, arg AtualizarZabbixInstanciaParams) (ZabbixInstancia, error)
+	BuscarAcronisConta(ctx context.Context, id int32) (AcronisConta, error)
 	BuscarFiltro(ctx context.Context, id int32) (Filtro, error)
 	BuscarMspInstancia(ctx context.Context, id int32) (MspInstancia, error)
 	BuscarZabbixInstancia(ctx context.Context, id int32) (ZabbixInstancia, error)
+	// db/queries/acronis_contas.sql
+	//
+	// Queries do CRUD de contas Acronis (credenciais OAuth2 client_credentials).
+	// Parâmetros posicionais ($1, $2…) — sqlc gera prepared statements.
+	CriarAcronisConta(ctx context.Context, arg CriarAcronisContaParams) (AcronisConta, error)
 	// db/queries/filtros.sql
 	//
 	// Queries do CRUD de filtros. Cada filtro pertence a uma instância Zabbix
@@ -30,10 +37,12 @@ type Querier interface {
 	// Queries do CRUD de instâncias Zabbix. Parâmetros posicionais ($1, $2…)
 	// — sqlc gera prepared statements, sem concatenação de string.
 	CriarZabbixInstancia(ctx context.Context, arg CriarZabbixInstanciaParams) (ZabbixInstancia, error)
+	ListarAcronisContas(ctx context.Context) ([]AcronisConta, error)
 	ListarFiltros(ctx context.Context) ([]Filtro, error)
 	ListarFiltrosPorInstancia(ctx context.Context, instanciaID int32) ([]Filtro, error)
 	ListarMspInstancias(ctx context.Context) ([]MspInstancia, error)
 	ListarZabbixInstancias(ctx context.Context) ([]ZabbixInstancia, error)
+	RemoverAcronisConta(ctx context.Context, id int32) (int64, error)
 	RemoverFiltro(ctx context.Context, id int32) (int64, error)
 	RemoverMspInstancia(ctx context.Context, id int32) (int64, error)
 	RemoverZabbixInstancia(ctx context.Context, id int32) (int64, error)

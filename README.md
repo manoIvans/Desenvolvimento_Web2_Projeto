@@ -1,13 +1,33 @@
 # SignalHub
 
 API HTTP em Go para consolidação de alertas de monitoramento de múltiplas
-fontes (Zabbix e MSP Clouds). Projeto didático da disciplina
-**Desenvolvimento Web II (DIM0547)** da UFRN.
+fontes (Zabbix, MSP Clouds e Acronis Cyber Protect Cloud). Projeto didático
+da disciplina **Desenvolvimento Web II (DIM0547)** da UFRN.
 
 Cada sprint amplia o projeto em direção ao stack final (Chi + PostgreSQL +
-sqlc + JWT + Docker + CI). Este commit entrega a **Sprint 2**.
+sqlc + JWT + Docker + CI). Este commit entrega a **Sprint 3**.
 
-## O que esta Sprint entrega
+## O que a Sprint 3 entrega
+
+- **Autenticação JWT**: `POST /login` devolve um access token JWT (HS256,
+  assinado com a stdlib — sem dependências externas) validado de forma
+  stateless no middleware
+- **Refresh token com rotação**: `POST /refresh` troca um refresh token
+  opaco por um par novo e **invalida o anterior** (uso único), limitando a
+  janela de reuso de um token vazado; `POST /logout` revoga o refresh
+- **Rotas protegidas** por middleware Bearer — todos os agregadores e CRUDs
+- **Correções de segurança OWASP**:
+  - *Rate limiting* por IP (token bucket) em `/login`, `/refresh` e `/logout`
+    contra força bruta (A07: Identification & Authentication Failures)
+  - *Cabeçalhos de segurança* em todas as respostas — `X-Content-Type-Options`,
+    `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`, HSTS
+    (A05: Security Misconfiguration)
+  - *Validação/sanitização de entrada* no servidor + *prepared statements*
+    via sqlc, já presentes desde a Sprint 2 (A03: Injection)
+- Suíte de testes ampliada (JWT, rotação de refresh, rate limiting,
+  cabeçalhos e **teste de integração do roteador completo**)
+
+## O que a Sprint 2 entrega
 
 - Persistência em **PostgreSQL** via pool de conexões `pgx/v5`
 - Acesso a dados gerado por **sqlc** — queries em SQL puro, código Go
@@ -50,15 +70,52 @@ Remover uma instância Zabbix remove seus filtros em cascata.
 
 ## Endpoints
 
+> **Autorização**: exceto `/healthz`, as rotas de autenticação e o frontend
+> estático, **todas** as rotas exigem o header `Authorization: Bearer <token>`
+> (access token JWT obtido no `/login` ou o token mestre configurado).
+
+### Autenticação (Sprint 3)
+
+| Método | Rota        | Corpo                      | Descrição                              |
+|--------|-------------|----------------------------|----------------------------------------|
+| POST   | `/login`    | `{"senha"}`                | Devolve `token` (JWT) + `refresh_token`|
+| POST   | `/refresh`  | `{"refresh_token"}`        | Novo par de tokens (rotaciona refresh) |
+| POST   | `/logout`   | `{"refresh_token"}`        | Revoga o refresh token                 |
+
+Resposta de `/login` e `/refresh`:
+
+```json
+{
+  "token": "<JWT>",
+  "refresh_token": "<token opaco>",
+  "expira_em": "2026-06-13T12:00:00Z",
+  "tipo": "Bearer"
+}
+```
+
 ### Saúde e cache (Sprint 1)
 
 | Método | Rota                 | Descrição                                       |
 |--------|----------------------|-------------------------------------------------|
-| GET    | `/healthz`           | Liveness check                                  |
+| GET    | `/healthz`           | Liveness check (público)                        |
 | GET    | `/zabbix`            | Cache consolidado de problemas Zabbix           |
 | POST   | `/zabbix/refresh`    | Força refresh das instâncias Zabbix             |
 | GET    | `/mspclouds`         | Cache consolidado de alertas MSP Clouds         |
 | POST   | `/mspclouds/refresh` | Força refresh das api_keys MSP                  |
+
+### Acronis Cyber Protect Cloud
+
+| Método | Rota                | Descrição                                       |
+|--------|---------------------|-------------------------------------------------|
+| GET    | `/acronis`          | Cache consolidado de alertas Acronis            |
+| POST   | `/acronis/refresh`  | Força refresh dos alertas Acronis               |
+
+> A integração Acronis implementa o fluxo real da **Cyber Platform API**:
+> descoberta de datacenter (`GET cloud.acronis.com/api/1/accounts`),
+> autenticação **OAuth2 client_credentials** (`POST <dc>/api/2/idp/token`,
+> token cacheado e reemitido por `expires_on`/401) e listagem de alertas
+> (`GET <dc>/api/alert_manager/v1/alerts`). Sem credenciais, roda em **modo
+> demonstração** com dados mock — como Zabbix e MSP Clouds.
 
 ### CRUD de instâncias Zabbix (Sprint 2)
 
@@ -79,6 +136,21 @@ Remover uma instância Zabbix remove seus filtros em cascata.
 | GET    | `/mspclouds/instancias/{id}` | Busca uma instância        |
 | PUT    | `/mspclouds/instancias/{id}` | Atualiza uma instância     |
 | DELETE | `/mspclouds/instancias/{id}` | Remove uma instância       |
+
+### CRUD de contas Acronis
+
+| Método | Rota                    | Descrição                  |
+|--------|-------------------------|----------------------------|
+| GET    | `/acronis/contas`       | Lista todas as contas      |
+| POST   | `/acronis/contas`       | Cria uma conta             |
+| GET    | `/acronis/contas/{id}`  | Busca uma conta            |
+| PUT    | `/acronis/contas/{id}`  | Atualiza uma conta         |
+| DELETE | `/acronis/contas/{id}`  | Remove uma conta           |
+
+> As contas cadastradas alimentam a integração Acronis no próximo boot da API
+> (mesmo modelo de Zabbix/MSP, que leem as instâncias do banco na subida).
+> Cada conta exige `client_id`, `client_secret` e ao menos um destino
+> (`server_url` **ou** `login` para descoberta do datacenter).
 
 ### CRUD de filtros (Sprint 2)
 
@@ -134,21 +206,57 @@ A string de conexão é resolvida da variável `DATABASE_URL`; se ausente,
 usa o padrão local `postgres://signalhub:signalhub@localhost:5432/signalhub`.
 O endereço de escuta padrão é `:8080`, sobrescrevível por `SIGNALHUB_ENDERECO`.
 
+### Variáveis de ambiente de autenticação
+
+Todas têm um padrão para rodar em desenvolvimento — a API loga um **WARN**
+quando usa o padrão, bastando definir a variável para sobrescrever:
+
+| Variável                          | Padrão       | Descrição                                   |
+|-----------------------------------|--------------|---------------------------------------------|
+| `SIGNALHUB_SENHA_LOGIN`           | `umasenha…`  | Senha aceita em `POST /login`               |
+| `SIGNALHUB_SEGREDO_JWT`           | `troque-…`   | Segredo HMAC que assina os access tokens    |
+| `SIGNALHUB_TOKEN_MESTRE`          | `mestre-…`   | Bearer permanente para admin/scripts        |
+| `SIGNALHUB_TTL_TOKEN_SEGUNDOS`    | `3600`       | Validade do access token (segundos)         |
+| `SIGNALHUB_TTL_REFRESH_SEGUNDOS`  | `86400`      | Validade do refresh token (segundos)        |
+
+### Variáveis de ambiente da integração Acronis
+
+As contas Acronis são preferencialmente cadastradas pelo painel (CRUD em
+`/acronis/contas`, persistido no banco). As variáveis abaixo são um **fallback
+legado**: usadas só quando não há nenhuma conta no banco. Sem contas no banco
+nem variáveis definidas, a integração roda em **modo demonstração** (mock).
+Para conectar a uma conta real, informe `CLIENT_ID` + `CLIENT_SECRET` e ou a
+URL do datacenter (`URL`) ou o `LOGIN` (para descoberta automática do DC):
+
+| Variável                          | Descrição                                            |
+|-----------------------------------|------------------------------------------------------|
+| `SIGNALHUB_ACRONIS_URL`           | URL base do datacenter (ex.: `https://eu2-cloud.acronis.com`) |
+| `SIGNALHUB_ACRONIS_LOGIN`         | Login para descobrir o datacenter (se `URL` ausente) |
+| `SIGNALHUB_ACRONIS_CLIENT_ID`     | `client_id` do API client (OAuth2)                   |
+| `SIGNALHUB_ACRONIS_CLIENT_SECRET` | `client_secret` do API client (OAuth2)               |
+
 Exemplo de uso:
 
 ```bash
-# Cria uma instância Zabbix
+# 1. Faz login e captura o access token JWT
+TOKEN=$(curl -s -X POST http://localhost:8080/login \
+  -H 'Content-Type: application/json' \
+  -d '{"senha":"umasenhacriativa"}' | jq -r .token)
+
+# 2. Cria uma instância Zabbix (rota protegida → exige o Bearer)
 curl -X POST http://localhost:8080/zabbix/instancias \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"nome":"Produção","url":"https://zabbix.exemplo.com","api_key":"k1"}'
 
-# Cria um filtro vinculado à instância 1
+# 3. Cria um filtro vinculado à instância 1
 curl -X POST http://localhost:8080/filtros \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"instancia_id":1,"alvo":"hosts","host":"srv-web-01"}'
 
-# Busca a instância com os filtros aninhados (relacionamento 1:N)
-curl http://localhost:8080/zabbix/instancias/1
+# 4. Busca a instância com os filtros aninhados (relacionamento 1:N)
+curl http://localhost:8080/zabbix/instancias/1 -H "Authorization: Bearer $TOKEN"
 ```
 
 ## sqlc
@@ -179,11 +287,14 @@ signalhub/
     │   ├── auxiliar.go             # classificação de erros + formatação
     │   └── consultas/              # código gerado pelo sqlc
     │       └── simulado/           # Querier em memória para testes
-    ├── instancias/                 # CRUD de instâncias Zabbix e MSP + 1:N
+    ├── autenticacao/               # JWT + refresh com rotação + middleware
+    ├── seguranca/                  # rate limiting + cabeçalhos de segurança
+    ├── instancias/                 # CRUD de instâncias Zabbix/MSP e contas Acronis + 1:N
     ├── filtros/                    # CRUD de filtros
     ├── resposta/                   # helpers HTTP (JSON, erros, parâmetros)
     ├── zabbix/                     # integração + cache + /zabbix
     ├── mspclouds/                  # integração + cache + /mspclouds
+    ├── acronis/                    # OAuth2 + alertas Acronis + cache + /acronis
     ├── saude/                      # endpoint /healthz
     ├── frontend/                   # serve a pasta frontend/ em /
     └── servidor/                   # composição do router + graceful shutdown
@@ -209,7 +320,7 @@ banco, aplica o schema, carrega as instâncias persistidas e injeta tudo.
 |----------|--------------------------------------------------------------|
 | Sprint 1 | API Chi, 5 endpoints reais (Zabbix + MSP), testes, CI        |
 | Sprint 2 | PostgreSQL + sqlc, CRUD persistido, relacionamento 1:N       |
-| Sprint 3 | JWT + middleware de autorização + testes de integração      |
+| Sprint 3 | JWT + refresh com rotação + OWASP (rate limit, headers) + testes ✅ |
 | Sprint 4 | Docker, docker-compose, observabilidade (healthz/readyz)     |
 
 ## Stack

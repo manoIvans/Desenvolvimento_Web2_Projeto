@@ -24,22 +24,26 @@ import (
 type QuerierSimulado struct {
 	zabbix  map[int32]consultas.ZabbixInstancia
 	msp     map[int32]consultas.MspInstancia
+	acronis map[int32]consultas.AcronisConta
 	filtros map[int32]consultas.Filtro
 
-	proxIDZabbix int32
-	proxIDMsp    int32
-	proxIDFiltro int32
+	proxIDZabbix  int32
+	proxIDMsp     int32
+	proxIDAcronis int32
+	proxIDFiltro  int32
 }
 
 // Novo constrói um QuerierSimulado vazio.
 func Novo() *QuerierSimulado {
 	return &QuerierSimulado{
-		zabbix:       map[int32]consultas.ZabbixInstancia{},
-		msp:          map[int32]consultas.MspInstancia{},
-		filtros:      map[int32]consultas.Filtro{},
-		proxIDZabbix: 1,
-		proxIDMsp:    1,
-		proxIDFiltro: 1,
+		zabbix:        map[int32]consultas.ZabbixInstancia{},
+		msp:           map[int32]consultas.MspInstancia{},
+		acronis:       map[int32]consultas.AcronisConta{},
+		filtros:       map[int32]consultas.Filtro{},
+		proxIDZabbix:  1,
+		proxIDMsp:     1,
+		proxIDAcronis: 1,
+		proxIDFiltro:  1,
 	}
 }
 
@@ -145,6 +149,64 @@ func (q *QuerierSimulado) RemoverMspInstancia(_ context.Context, id int32) (int6
 		return 0, nil
 	}
 	delete(q.msp, id)
+	return 1, nil
+}
+
+// ----- Contas Acronis -----
+
+func (q *QuerierSimulado) CriarAcronisConta(_ context.Context, arg consultas.CriarAcronisContaParams) (consultas.AcronisConta, error) {
+	registro := consultas.AcronisConta{
+		ID:           q.proxIDAcronis,
+		Nome:         arg.Nome,
+		ServerUrl:    arg.ServerUrl,
+		Login:        arg.Login,
+		ClientID:     arg.ClientID,
+		ClientSecret: arg.ClientSecret,
+		CriadoEm:     agora(),
+		AtualizadoEm: agora(),
+	}
+	q.acronis[registro.ID] = registro
+	q.proxIDAcronis++
+	return registro, nil
+}
+
+func (q *QuerierSimulado) ListarAcronisContas(_ context.Context) ([]consultas.AcronisConta, error) {
+	lista := make([]consultas.AcronisConta, 0, len(q.acronis))
+	for _, registro := range q.acronis {
+		lista = append(lista, registro)
+	}
+	sort.Slice(lista, func(i, j int) bool { return lista[i].ID < lista[j].ID })
+	return lista, nil
+}
+
+func (q *QuerierSimulado) BuscarAcronisConta(_ context.Context, id int32) (consultas.AcronisConta, error) {
+	registro, ok := q.acronis[id]
+	if !ok {
+		return consultas.AcronisConta{}, pgx.ErrNoRows
+	}
+	return registro, nil
+}
+
+func (q *QuerierSimulado) AtualizarAcronisConta(_ context.Context, arg consultas.AtualizarAcronisContaParams) (consultas.AcronisConta, error) {
+	registro, ok := q.acronis[arg.ID]
+	if !ok {
+		return consultas.AcronisConta{}, pgx.ErrNoRows
+	}
+	registro.Nome = arg.Nome
+	registro.ServerUrl = arg.ServerUrl
+	registro.Login = arg.Login
+	registro.ClientID = arg.ClientID
+	registro.ClientSecret = arg.ClientSecret
+	registro.AtualizadoEm = agora()
+	q.acronis[arg.ID] = registro
+	return registro, nil
+}
+
+func (q *QuerierSimulado) RemoverAcronisConta(_ context.Context, id int32) (int64, error) {
+	if _, ok := q.acronis[id]; !ok {
+		return 0, nil
+	}
+	delete(q.acronis, id)
 	return 1, nil
 }
 

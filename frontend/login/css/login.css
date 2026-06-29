@@ -1,13 +1,38 @@
-/* ----- Tokens locais (página de login é autocontida) ----- */
+/* ═══════════════════════════════════════════════
+   login.css — Página de login (autocontida: define seus próprios tokens).
+   Responsiva, com tema claro/escuro automático e foco acessível.
+   ═══════════════════════════════════════════════ */
 
 :root {
-  --azul:    #0061f2;
-  --azul-2:  #4f46e5;
-  --texto:   #1c1c24;
-  --suave:   #6b6b7a;
-  --borda:   #d8d8e0;
-  --fundo:   #f7f7fa;
-  --erro:    #d32f2f;
+  color-scheme: light dark;
+
+  --azul:    #2f6bff;
+  --azul-2:  #5a4be0;
+  --texto:   #181a23;
+  --suave:   #646878;
+  --borda:   #d8dae6;
+  --campo:   #f5f6fb;
+  --cartao:  #ffffff;
+  --fundo-a: #eaf1ff;
+  --fundo-b: #f3f4f8;
+  --erro-fundo: #fdecea;
+  --erro-texto: #b4232a;
+  --sombra:  0 18px 48px rgba(20, 22, 45, .12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --texto:   #eef0f7;
+    --suave:   #969bad;
+    --borda:   #2e3340;
+    --campo:   #1e222c;
+    --cartao:  #171a22;
+    --fundo-a: #131a2e;
+    --fundo-b: #0e1016;
+    --erro-fundo: #3a1d1e;
+    --erro-texto: #ff9ea1;
+    --sombra:  0 18px 48px rgba(0, 0, 0, .6);
+  }
 }
 
 
@@ -22,10 +47,17 @@ html, body {
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   color: var(--texto);
-  background: radial-gradient(ellipse at top, #eaf3ff 0%, var(--fundo) 60%, #ffffff 100%);
+  background: radial-gradient(ellipse at top, var(--fundo-a) 0%, var(--fundo-b) 60%, var(--cartao) 100%);
   min-height: 100vh;
+  min-height: 100dvh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 
@@ -33,6 +65,7 @@ body {
 
 .login-painel {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -45,11 +78,11 @@ body {
 /* ----- Card de login ----- */
 
 .login-card {
-  background: #fff;
+  background: var(--cartao);
   border: 1px solid var(--borda);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .08);
-  padding: 32px 36px;
+  border-radius: 16px;
+  box-shadow: var(--sombra);
+  padding: clamp(24px, 5vw, 36px);
   width: 100%;
   max-width: 380px;
 }
@@ -69,12 +102,12 @@ body {
   height: 12px;
   border-radius: 50%;
   background: var(--azul);
-  box-shadow: 0 0 6px var(--azul);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--azul) 22%, transparent);
 }
 
 .login-card h1 {
   margin: 4px 0;
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   background: linear-gradient(135deg, var(--azul), var(--azul-2));
   -webkit-background-clip: text;
   background-clip: text;
@@ -106,40 +139,50 @@ body {
 }
 
 .login-form input {
-  padding: 10px 12px;
+  padding: 11px 13px;
   border: 1px solid var(--borda);
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: .95rem;
+  font-family: inherit;
   color: var(--texto);
-  background: var(--fundo);
+  background: var(--campo);
+  transition: border-color .14s, box-shadow .14s;
 }
 
 .login-form input:focus {
-  outline: 2px solid var(--azul);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--azul);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--azul) 20%, transparent);
 }
 
 
 /* ----- Botão ----- */
 
 .login-botao {
+  margin-top: 4px;
+  min-height: 44px;
   background: linear-gradient(135deg, var(--azul), var(--azul-2));
   color: #fff;
   border: 0;
-  padding: 10px 14px;
-  border-radius: 6px;
+  padding: 11px 14px;
+  border-radius: 8px;
   font-size: .95rem;
+  font-family: inherit;
   cursor: pointer;
   font-weight: 600;
-  transition: filter .12s;
+  transition: filter .12s, transform .12s;
 }
 
 .login-botao:hover {
   filter: brightness(1.08);
 }
 
+.login-botao:active {
+  transform: translateY(1px);
+}
+
 .login-botao:disabled {
-  opacity: .55;
+  opacity: .6;
   cursor: progress;
 }
 
@@ -149,7 +192,7 @@ body {
 .login-mensagem {
   margin-top: 14px;
   font-size: .85rem;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .login-mensagem:empty {
@@ -157,9 +200,9 @@ body {
 }
 
 .login-mensagem.erro {
-  padding: 9px 12px;
-  background: #fdecea;
-  color: var(--erro);
+  padding: 10px 12px;
+  background: var(--erro-fundo);
+  color: var(--erro-texto);
 }
 
 
@@ -168,4 +211,12 @@ body {
 .login-rodape {
   color: var(--suave);
   font-size: .78rem;
+  text-align: center;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: .001ms !important;
+  }
 }

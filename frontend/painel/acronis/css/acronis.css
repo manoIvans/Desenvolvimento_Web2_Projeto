@@ -1,0 +1,20 @@
+/* ----- Selos de severidade Acronis (ok|information|warning|error|critical) ----- */
+
+.selo-acronis-critico { background: var(--selo-desastre); }
+.selo-acronis-erro    { background: var(--selo-alto); }
+.selo-acronis-aviso   { background: var(--selo-atencao); color: var(--texto-sobre-claro); }
+.selo-acronis-info    { background: var(--selo-info); }
+.selo-acronis-ok      { background: var(--selo-ok); }
+
+
+/* ----- Borda lateral do card por severidade ----- */
+
+.card-acronis {
+  border-left: 4px solid var(--borda-forte);
+}
+
+.card-acronis.sev-critico { border-left-color: var(--gravidade-desastre); }
+.card-acronis.sev-erro    { border-left-color: var(--gravidade-alto); }
+.card-acronis.sev-aviso   { border-left-color: var(--gravidade-atencao); }
+.card-acronis.sev-info    { border-left-color: var(--gravidade-info); }
+.card-acronis.sev-ok      { border-left-color: var(--gravidade-ok); }

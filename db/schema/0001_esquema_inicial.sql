@@ -25,6 +25,21 @@ CREATE TABLE IF NOT EXISTS msp_instancias (
     atualizado_em  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+-- ----- Contas Acronis -----
+-- Credenciais OAuth2 client_credentials de um tenant Acronis. server_url e
+-- login são mutuamente opcionais: basta um deles (a URL do datacenter pode
+-- ser descoberta a partir do login). client_id é único por conta.
+CREATE TABLE IF NOT EXISTS acronis_contas (
+    id             SERIAL       PRIMARY KEY,
+    nome           TEXT         NOT NULL DEFAULT '',
+    server_url     TEXT         NOT NULL DEFAULT '',
+    login          TEXT         NOT NULL DEFAULT '',
+    client_id      TEXT         NOT NULL UNIQUE,
+    client_secret  TEXT         NOT NULL,
+    criado_em      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    atualizado_em  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
 -- ----- Filtros (pertencem a uma instância Zabbix) -----
 CREATE TABLE IF NOT EXISTS filtros (
     id             SERIAL       PRIMARY KEY,

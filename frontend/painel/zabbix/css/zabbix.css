@@ -1,15 +1,15 @@
 /* ----- Selos de gravidade Zabbix ----- */
 
-.selo-gravidade-desastre { background: var(--gravidade-desastre); }
-.selo-gravidade-alto     { background: var(--gravidade-alto); }
-.selo-gravidade-atencao  { background: var(--gravidade-atencao); color: #4a3700; }
-.selo-gravidade-info     { background: var(--gravidade-info); }
+.selo-gravidade-desastre { background: var(--selo-desastre); }
+.selo-gravidade-alto     { background: var(--selo-alto); }
+.selo-gravidade-atencao  { background: var(--selo-atencao); color: var(--texto-sobre-claro); }
+.selo-gravidade-info     { background: var(--selo-info); }
 
 
 /* ----- Borda lateral do card por gravidade ----- */
 
 .card-zabbix {
-  border-left: 4px solid var(--borda);
+  border-left: 4px solid var(--borda-forte);
 }
 
 .card-zabbix.gravidade-desastre { border-left-color: var(--gravidade-desastre); }

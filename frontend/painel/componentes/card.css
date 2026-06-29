@@ -1,64 +1,91 @@
-/* ----- Card de problema/alerta (compartilhado) ----- */
+/* ═══════════════════════════════════════════════
+   card.css — Card de problema/alerta (compartilhado por Zabbix, MSP e
+   Acronis) e o selo (badge) genérico. A borda lateral colorida por
+   gravidade/tipo vem dos CSS de cada seção.
+   ═══════════════════════════════════════════════ */
 
 .card {
   background: var(--superficie);
   border: 1px solid var(--borda);
-  border-radius: 8px;
-  padding: 14px 16px;
+  border-radius: var(--raio-2);
+  padding: var(--e4);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  transition: transform .12s, box-shadow .12s;
+  gap: var(--e2);
+  box-shadow: var(--sombra-1);
+  transition: transform var(--trans), box-shadow var(--trans), border-color var(--trans);
 }
 
 .card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .08);
+  box-shadow: var(--sombra-2);
+  border-color: var(--borda-forte);
 }
 
 .card-topo {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--e2);
 }
 
 .card-titulo {
+  min-width: 0; /* permite encolher e quebrar antes de empurrar o selo */
   font-weight: 600;
   color: var(--texto);
   font-size: 1rem;
-  line-height: 1.25;
+  line-height: 1.3;
   word-break: break-word;
 }
 
 .card-evento {
   color: var(--apagado);
   font-size: .9rem;
-  line-height: 1.35;
+  line-height: 1.4;
+  /* Limita a 3 linhas para manter os cards alinhados na grade. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .card-rodape {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: .8rem;
+  gap: var(--e2);
+  font-size: .78rem;
   color: var(--apagado);
-  margin-top: 4px;
-  padding-top: 8px;
+  margin-top: var(--e1);
+  padding-top: var(--e2);
   border-top: 1px dashed var(--borda);
 }
 
+.card-rodape span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-/* ----- Selo (badge) generico ----- */
+/* O horário tem largura previsível: não encolhe — só o 1º span (id/tenant). */
+.card-rodape span:last-child {
+  flex-shrink: 0;
+}
+
+
+/* ----- Selo (badge) genérico ----- */
 
 .selo {
   display: inline-block;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: .72rem;
-  font-weight: 600;
+  padding: var(--e1) var(--e2);
+  border-radius: var(--raio-pill);
+  font-size: .68rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .4px;
+  letter-spacing: .5px;
   color: #fff;
   white-space: nowrap;
+  flex-shrink: 0;
 }

@@ -1,19 +1,120 @@
-/* ----- Tema (tokens de cor) ----- */
+/* ═══════════════════════════════════════════════
+   tema.css — Tokens de design do painel (cores, espaçamento, raio,
+   sombra, tipografia, transições). Fonte única de verdade do visual.
+   Suporta tema claro e escuro automático (prefers-color-scheme).
+   ═══════════════════════════════════════════════ */
 
 :root {
-  --fundo:      #f7f7fa;
-  --superficie: #ffffff;
-  --borda:      #d8d8e0;
-  --texto:      #1c1c24;
-  --apagado:    #6b6b7a;
-  --destaque:   #0061f2;
+  color-scheme: light dark;
 
-  --gravidade-desastre: #d32f2f;
-  --gravidade-alto:     #f57c00;
-  --gravidade-atencao:  #fbc02d;
-  --gravidade-info:     #1976d2;
+  /* ----- Superfícies e texto (claro) ----- */
+  --fundo:        #f3f4f8;
+  --fundo-2:      #e9ebf2;
+  --superficie:   #ffffff;
+  --superficie-2: #f7f8fc;
+  --borda:        #e3e5ee;
+  --borda-forte:  #cdd0dd;
+  --texto:        #181a23;
+  --apagado:      #646878;
 
-  --tipo-msp-backup:    #6a1b9a;
-  --tipo-msp-rede:      #00796b;
-  --tipo-msp-sistema:   #c62828;
+  /* ----- Marca / destaque ----- */
+  --destaque:          #2f6bff;
+  --destaque-2:        #5a4be0;
+  --destaque-suave:    #e9f0ff;
+  --destaque-contraste:#ffffff;
+
+  /* ----- Gravidade / severidade ----- */
+  --gravidade-desastre: #e5484d;
+  --gravidade-alto:     #f76808;
+  --gravidade-atencao:  #f5c211;
+  --gravidade-info:     #3a7bd5;
+  --gravidade-ok:       #29a36a;
+  --texto-sobre-claro:  #4a3700; /* texto escuro sobre selo amarelo */
+
+  /* ----- Tipos MSP Clouds ----- */
+  --tipo-msp-backup:  #8e4ec6;
+  --tipo-msp-rede:    #0e9888;
+  --tipo-msp-sistema: #e5484d;
+
+  /* ----- Fundo dos selos (badges): escuro o bastante para texto branco
+     atingir contraste AA >= 4,5:1. As cores acima ficam para as bordas
+     (decorativas, sem texto), que podem ser mais vivas. ----- */
+  --selo-desastre: #c62828;
+  --selo-alto:     #b23c00;
+  --selo-atencao:  #f5c211; /* usa texto escuro (--texto-sobre-claro) */
+  --selo-info:     #1f63c4;
+  --selo-ok:       #1c7d46;
+  --selo-backup:   #8e4ec6;
+  --selo-rede:     #0f766e;
+  --selo-sistema:  #c62828;
+
+  /* ----- Realces de fundo para mensagens ----- */
+  --erro-fundo:    #fdecea;
+  --erro-texto:    #b4232a;
+  --ok-fundo:      #e7f5ec;
+  --ok-texto:      #1b7a3d;
+  --aviso-fundo:   #fff6e0;
+  --aviso-texto:   #946200;
+
+  /* ----- Escala de espaçamento ----- */
+  --e1: 4px;
+  --e2: 8px;
+  --e3: 12px;
+  --e4: 16px;
+  --e5: 24px;
+  --e6: 32px;
+
+  /* ----- Raio ----- */
+  --raio-1: 6px;
+  --raio-2: 10px;
+  --raio-3: 16px;
+  --raio-pill: 999px;
+
+  /* ----- Sombra (elevação) ----- */
+  --sombra-1: 0 1px 2px rgba(20, 22, 45, .06), 0 1px 3px rgba(20, 22, 45, .04);
+  --sombra-2: 0 6px 18px rgba(20, 22, 45, .10);
+  --sombra-3: 0 18px 48px rgba(20, 22, 45, .22);
+
+  /* ----- Tipografia ----- */
+  --fonte: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --txt-secao: clamp(1.15rem, 1rem + .6vw, 1.45rem);
+
+  /* ----- Movimento ----- */
+  --trans: .16s ease;
+
+  /* ----- Camadas ----- */
+  --z-cabecalho: 50;
+  --z-modal: 1000;
+}
+
+/* ----- Tema escuro automático ----- */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo:        #0e1016;
+    --fundo-2:      #0a0c11;
+    --superficie:   #171a22;
+    --superficie-2: #1e222c;
+    --borda:        #2a2f3b;
+    --borda-forte:  #3b4150;
+    --texto:        #eef0f7;
+    --apagado:      #969bad;
+
+    --destaque:       #5b8cff;
+    --destaque-2:     #7c6cff;
+    --destaque-suave: #18213d;
+
+    --gravidade-info: #5b8cff;
+
+    --erro-fundo:  #3a1d1e;
+    --erro-texto:  #ff9ea1;
+    --ok-fundo:    #142c20;
+    --ok-texto:    #7ee0a6;
+    --aviso-fundo: #332a12;
+    --aviso-texto: #f0cd76;
+
+    --sombra-1: 0 1px 2px rgba(0, 0, 0, .45);
+    --sombra-2: 0 6px 20px rgba(0, 0, 0, .55);
+    --sombra-3: 0 18px 48px rgba(0, 0, 0, .65);
+  }
 }

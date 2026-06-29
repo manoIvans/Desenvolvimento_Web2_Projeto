@@ -1,7 +1,8 @@
 // internal/instancias/http.go
 //
-// Handlers HTTP do CRUD de instâncias Zabbix e MSP Clouds + registro de
-// rotas Chi. GET /zabbix/instancias/{id} devolve os filtros aninhados.
+// Handlers HTTP do CRUD de instâncias Zabbix, MSP Clouds e contas Acronis +
+// registro de rotas Chi. GET /zabbix/instancias/{id} devolve os filtros
+// aninhados.
 
 package instancias
 
@@ -16,11 +17,13 @@ import (
 // ----- Constantes -----
 
 const (
-	ROTA_ZABBIX_COLECAO = "/zabbix/instancias"
-	ROTA_ZABBIX_ITEM    = "/zabbix/instancias/{id}"
-	ROTA_MSP_COLECAO    = "/mspclouds/instancias"
-	ROTA_MSP_ITEM       = "/mspclouds/instancias/{id}"
-	PARAM_ID            = "id"
+	ROTA_ZABBIX_COLECAO  = "/zabbix/instancias"
+	ROTA_ZABBIX_ITEM     = "/zabbix/instancias/{id}"
+	ROTA_MSP_COLECAO     = "/mspclouds/instancias"
+	ROTA_MSP_ITEM        = "/mspclouds/instancias/{id}"
+	ROTA_ACRONIS_COLECAO = "/acronis/contas"
+	ROTA_ACRONIS_ITEM    = "/acronis/contas/{id}"
+	PARAM_ID             = "id"
 )
 
 // ----- Tipo Handler -----
@@ -35,7 +38,7 @@ func NovoHandler(servico *Servico) *Handler {
 	return &Handler{servico: servico}
 }
 
-// Rotas registra o CRUD de instâncias Zabbix e MSP Clouds no router.
+// Rotas registra o CRUD de instâncias Zabbix, MSP Clouds e contas Acronis no router.
 func (h *Handler) Rotas(r chi.Router) {
 	r.Get(ROTA_ZABBIX_COLECAO, h.listarZabbix)
 	r.Post(ROTA_ZABBIX_COLECAO, h.criarZabbix)
@@ -48,6 +51,12 @@ func (h *Handler) Rotas(r chi.Router) {
 	r.Get(ROTA_MSP_ITEM, h.buscarMsp)
 	r.Put(ROTA_MSP_ITEM, h.atualizarMsp)
 	r.Delete(ROTA_MSP_ITEM, h.removerMsp)
+
+	r.Get(ROTA_ACRONIS_COLECAO, h.listarAcronis)
+	r.Post(ROTA_ACRONIS_COLECAO, h.criarAcronis)
+	r.Get(ROTA_ACRONIS_ITEM, h.buscarAcronis)
+	r.Put(ROTA_ACRONIS_ITEM, h.atualizarAcronis)
+	r.Delete(ROTA_ACRONIS_ITEM, h.removerAcronis)
 }
 
 // ----- Endpoints Zabbix (handlers no final) -----
@@ -196,6 +205,82 @@ func (h *Handler) removerMsp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.servico.RemoverMsp(r.Context(), id); err != nil {
+		resposta.Tratar(w, err)
+		return
+	}
+	resposta.JSON(w, http.StatusOK, map[string]bool{"removido": true})
+}
+
+// ----- Endpoints Acronis (handlers no final) -----
+
+func (h *Handler) listarAcronis(w http.ResponseWriter, r *http.Request) {
+	lista, err := h.servico.ListarAcronis(r.Context())
+	if err != nil {
+		resposta.Tratar(w, err)
+		return
+	}
+	resposta.JSON(w, http.StatusOK, map[string]any{"data": lista})
+}
+
+func (h *Handler) buscarAcronis(w http.ResponseWriter, r *http.Request) {
+	id, err := resposta.IDdaRota(r, PARAM_ID)
+	if err != nil {
+		resposta.Erro(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+
+	conta, err := h.servico.BuscarAcronis(r.Context(), id)
+	if err != nil {
+		resposta.Tratar(w, err)
+		return
+	}
+	resposta.JSON(w, http.StatusOK, conta)
+}
+
+func (h *Handler) criarAcronis(w http.ResponseWriter, r *http.Request) {
+	var entrada EntradaAcronis
+	if err := resposta.LerJSON(r, &entrada); err != nil {
+		resposta.Erro(w, http.StatusBadRequest, "corpo JSON inválido")
+		return
+	}
+
+	conta, err := h.servico.CriarAcronis(r.Context(), entrada)
+	if err != nil {
+		resposta.Tratar(w, err)
+		return
+	}
+	resposta.JSON(w, http.StatusCreated, conta)
+}
+
+func (h *Handler) atualizarAcronis(w http.ResponseWriter, r *http.Request) {
+	id, err := resposta.IDdaRota(r, PARAM_ID)
+	if err != nil {
+		resposta.Erro(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+
+	var entrada EntradaAcronis
+	if err := resposta.LerJSON(r, &entrada); err != nil {
+		resposta.Erro(w, http.StatusBadRequest, "corpo JSON inválido")
+		return
+	}
+
+	conta, err := h.servico.AtualizarAcronis(r.Context(), id, entrada)
+	if err != nil {
+		resposta.Tratar(w, err)
+		return
+	}
+	resposta.JSON(w, http.StatusOK, conta)
+}
+
+func (h *Handler) removerAcronis(w http.ResponseWriter, r *http.Request) {
+	id, err := resposta.IDdaRota(r, PARAM_ID)
+	if err != nil {
+		resposta.Erro(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+
+	if err := h.servico.RemoverAcronis(r.Context(), id); err != nil {
 		resposta.Tratar(w, err)
 		return
 	}

@@ -1,7 +1,7 @@
 // internal/instancias/instancias_test.go
 //
-// Testes do CRUD de instâncias Zabbix/MSP e do endpoint aninhado 1:N,
-// usando o QuerierSimulado (sem PostgreSQL real).
+// Testes do CRUD de instâncias Zabbix/MSP, contas Acronis e do endpoint
+// aninhado 1:N, usando o QuerierSimulado (sem PostgreSQL real).
 
 package instancias
 
@@ -177,6 +177,110 @@ func TestCriarMspSemApiKey(t *testing.T) {
 	}
 }
 
+// ----- Acronis -----
+
+func entradaAcronisValida() EntradaAcronis {
+	return EntradaAcronis{
+		Nome:         "Tenant principal",
+		ServerURL:    "https://eu2-cloud.acronis.com",
+		ClientID:     "client-abc",
+		ClientSecret: "secret-xyz",
+	}
+}
+
+func TestCriarAcronisComDadosValidos(t *testing.T) {
+	servico := NovoServico(simulado.Novo())
+
+	conta, err := servico.CriarAcronis(context.Background(), entradaAcronisValida())
+	if err != nil {
+		t.Fatalf("criar conta Acronis válida falhou: %v", err)
+	}
+	if conta.ID == 0 {
+		t.Error("conta criada deveria ter id atribuído")
+	}
+	if conta.ClientID != "client-abc" {
+		t.Errorf("client_id incorreto: %q", conta.ClientID)
+	}
+}
+
+func TestCriarAcronisComLoginSemServerURL(t *testing.T) {
+	servico := NovoServico(simulado.Novo())
+
+	entrada := EntradaAcronis{
+		Login:        "operador@empresa",
+		ClientID:     "client-abc",
+		ClientSecret: "secret-xyz",
+	}
+	if _, err := servico.CriarAcronis(context.Background(), entrada); err != nil {
+		t.Errorf("login deveria bastar como destino (descoberta), erro: %v", err)
+	}
+}
+
+func TestCriarAcronisSemDestinoFalha(t *testing.T) {
+	servico := NovoServico(simulado.Novo())
+
+	entrada := entradaAcronisValida()
+	entrada.ServerURL = ""
+	entrada.Login = ""
+
+	if _, err := servico.CriarAcronis(context.Background(), entrada); err == nil {
+		t.Error("esperado erro: sem server_url nem login não há destino")
+	}
+}
+
+func TestCriarAcronisSemCredenciaisFalha(t *testing.T) {
+	servico := NovoServico(simulado.Novo())
+
+	entrada := entradaAcronisValida()
+	entrada.ClientSecret = ""
+
+	if _, err := servico.CriarAcronis(context.Background(), entrada); err == nil {
+		t.Error("esperado erro de validação para client_secret vazio")
+	}
+}
+
+func TestCriarAcronisURLInvalidaFalha(t *testing.T) {
+	servico := NovoServico(simulado.Novo())
+
+	entrada := entradaAcronisValida()
+	entrada.ServerURL = "nao-e-uma-url"
+
+	if _, err := servico.CriarAcronis(context.Background(), entrada); err == nil {
+		t.Error("esperado erro de validação para server_url inválida")
+	}
+}
+
+func TestAtualizarAcronisSobrescreveCampos(t *testing.T) {
+	servico := NovoServico(simulado.Novo())
+	contexto := context.Background()
+
+	criada, _ := servico.CriarAcronis(contexto, entradaAcronisValida())
+
+	atualizada, err := servico.AtualizarAcronis(contexto, criada.ID, EntradaAcronis{
+		Nome:         "Tenant secundário",
+		Login:        "outro@empresa",
+		ClientID:     "client-def",
+		ClientSecret: "secret-novo",
+	})
+	if err != nil {
+		t.Fatalf("atualizar falhou: %v", err)
+	}
+	if atualizada.Nome != "Tenant secundário" {
+		t.Errorf("nome não atualizado: %q", atualizada.Nome)
+	}
+	if atualizada.ServerURL != "" {
+		t.Errorf("server_url deveria ter sido sobrescrito para vazio, obtido %q", atualizada.ServerURL)
+	}
+}
+
+func TestRemoverAcronisInexistenteRetornaErro(t *testing.T) {
+	servico := NovoServico(simulado.Novo())
+
+	if err := servico.RemoverAcronis(context.Background(), 999); err == nil {
+		t.Error("esperado erro ao remover conta inexistente")
+	}
+}
+
 // ----- Handler HTTP -----
 
 func TestHandlerCriarZabbixRetorna201(t *testing.T) {
@@ -256,5 +360,31 @@ func TestHandlerCriarMspRetorna201(t *testing.T) {
 
 	if rec.Code != http.StatusCreated {
 		t.Errorf("esperado 201, obtido %d (corpo: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandlerCriarAcronisRetorna201(t *testing.T) {
+	router := montarRouter(NovoServico(simulado.Novo()))
+
+	corpo := `{"nome":"Tenant","server_url":"https://eu2-cloud.acronis.com","client_id":"c1","client_secret":"s1"}`
+	req := httptest.NewRequest(http.MethodPost, "/acronis/contas", strings.NewReader(corpo))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("esperado 201, obtido %d (corpo: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandlerCriarAcronisSemDestinoRetorna400(t *testing.T) {
+	router := montarRouter(NovoServico(simulado.Novo()))
+
+	corpo := `{"nome":"Tenant","client_id":"c1","client_secret":"s1"}`
+	req := httptest.NewRequest(http.MethodPost, "/acronis/contas", strings.NewReader(corpo))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("esperado 400 (sem server_url nem login), obtido %d", rec.Code)
 	}
 }

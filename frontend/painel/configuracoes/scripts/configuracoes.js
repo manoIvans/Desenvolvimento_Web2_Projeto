@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════
 //  configuracoes/scripts/configuracoes.js
 //  Modal de configurações — CRUD de instâncias Zabbix, instâncias MSP
-//  Clouds e filtros (exclusivos do Zabbix), persistidos no backend.
+//  Clouds e contas Acronis, persistidos no backend. Os filtros (exclusivos
+//  do Zabbix) têm janela própria (filtros/scripts/filtros.js).
 // ═══════════════════════════════════════════════
 
 const ConfiguracoesModal = (function () {
@@ -12,33 +13,10 @@ const ConfiguracoesModal = (function () {
 
   const EVENTO_DADOS_ALTERADOS = 'configuracoesAlteradasEvent';
 
-  const ROTULOS_ALVO = {
-    hosts:            'Hosts',
-    eventos:          'Eventos',
-    grupos:           'Grupos',
-    eventos_em_hosts: 'Eventos em Hosts',
-  };
-
-  // Cada alvo de filtro usa apenas os campos que fazem sentido para ele.
-  const CAMPOS_POR_ALVO = {
-    hosts:            ['host'],
-    eventos:          ['evento'],
-    grupos:           ['valor'],
-    eventos_em_hosts: ['evento', 'host'],
-  };
-
-  const ROTULOS_CAMPO_FILTRO = {
-    valor:  'Grupo',
-    evento: 'Evento',
-    host:   'Host',
-  };
-
-  const ALVO_PADRAO = 'hosts';
-
   const PAINEIS = {
     zabbix:   () => renderizarPainelZabbix(),
     mspcloud: () => renderizarPainelMsp(),
-    filtros:  () => renderizarPainelFiltros(),
+    acronis:  () => renderizarPainelAcronis(),
   };
 
 
@@ -48,7 +26,14 @@ const ConfiguracoesModal = (function () {
   let idEmEdicao  = null;
   let houveAlteracao = false;
 
-  let cacheInstanciasZabbix = [];
+  const escapar = SignalRender.Escapar;
+
+  const modal = SignalModal.Criar({
+    overlayId: 'modalConfiguracoes',
+    aoFechar: () => {
+      if (houveAlteracao) document.dispatchEvent(new CustomEvent(EVENTO_DADOS_ALTERADOS));
+    },
+  });
 
 
   // ----- API pública -----
@@ -61,21 +46,9 @@ const ConfiguracoesModal = (function () {
   // ----- Controle do modal -----
 
   function abrir() {
-    const overlay = document.getElementById('modalConfiguracoes');
-    if (!overlay) return;
-    overlay.classList.remove('escondida');
     houveAlteracao = false;
+    modal.abrir(document.getElementById('botaoFecharConfiguracoes'));
     trocarPainel(PAINEL_PADRAO);
-  }
-
-
-  function fechar() {
-    const overlay = document.getElementById('modalConfiguracoes');
-    if (!overlay) return;
-    overlay.classList.add('escondida');
-    if (houveAlteracao) {
-      document.dispatchEvent(new CustomEvent(EVENTO_DADOS_ALTERADOS));
-    }
   }
 
 
@@ -83,7 +56,9 @@ const ConfiguracoesModal = (function () {
     painelAtivo = idPainel;
     idEmEdicao  = null;
     document.querySelectorAll('.modal-aba').forEach(aba => {
-      aba.classList.toggle('ativa', aba.dataset.painel === idPainel);
+      const ativa = aba.dataset.painel === idPainel;
+      aba.classList.toggle('ativa', ativa);
+      aba.setAttribute('aria-selected', ativa ? 'true' : 'false');
     });
     renderizarPainelAtivo();
   }
@@ -100,7 +75,7 @@ const ConfiguracoesModal = (function () {
     try {
       await renderizador();
     } catch (erro) {
-      conteudo.innerHTML = `<div class="config-mensagem erro">${escapar(mensagemDeErro(erro))}</div>`;
+      conteudo.innerHTML = `<div class="config-mensagem erro">${escapar(SignalModal.MensagemDeErro(erro))}</div>`;
     }
   }
 
@@ -128,11 +103,11 @@ const ConfiguracoesModal = (function () {
           <input name="api_key" type="text" maxlength="500" required
                  value="${escapar(emEdicao?.api_key ?? '')}" placeholder="token de acesso" />
         </label>
-        ${montarBotoesForm()}
+        ${SignalModal.BotoesForm(idEmEdicao)}
       </form>
-      <div class="config-mensagem" data-mensagem></div>
+      <div class="config-mensagem" data-mensagem role="alert" aria-live="polite"></div>
       <ul class="config-lista">
-        ${lista.map(montarLinhaZabbix).join('') || itemVazio('Nenhuma instância Zabbix cadastrada.')}
+        ${lista.map(montarLinhaZabbix).join('') || SignalModal.ItemVazio('Nenhuma instância Zabbix cadastrada.')}
       </ul>
     `;
   }
@@ -146,7 +121,7 @@ const ConfiguracoesModal = (function () {
           <span class="config-item-detalhe">${escapar(instancia.url)}</span>
           <span class="config-item-detalhe">chave: ${escapar(mascarar(instancia.api_key))}</span>
         </div>
-        ${montarBotoesItem(instancia.id)}
+        ${SignalModal.BotoesItem(instancia.id)}
       </li>
     `;
   }
@@ -166,11 +141,11 @@ const ConfiguracoesModal = (function () {
           <input name="api_key" type="text" maxlength="500" required
                  value="${escapar(emEdicao?.api_key ?? '')}" placeholder="2058-0A8B-6FE0-8480" />
         </label>
-        ${montarBotoesForm()}
+        ${SignalModal.BotoesForm(idEmEdicao)}
       </form>
-      <div class="config-mensagem" data-mensagem></div>
+      <div class="config-mensagem" data-mensagem role="alert" aria-live="polite"></div>
       <ul class="config-lista">
-        ${lista.map(montarLinhaMsp).join('') || itemVazio('Nenhuma instância MSP Clouds cadastrada.')}
+        ${lista.map(montarLinhaMsp).join('') || SignalModal.ItemVazio('Nenhuma instância MSP Clouds cadastrada.')}
       </ul>
     `;
   }
@@ -183,90 +158,67 @@ const ConfiguracoesModal = (function () {
           <span class="config-item-titulo">${escapar(mascarar(instancia.api_key))}</span>
           <span class="config-item-detalhe">cadastrada em ${escapar(formatarData(instancia.criado_em))}</span>
         </div>
-        ${montarBotoesItem(instancia.id)}
+        ${SignalModal.BotoesItem(instancia.id)}
       </li>
     `;
   }
 
 
-  // ----- Painel: filtros (exclusivo Zabbix) -----
+  // ----- Painel: contas Acronis -----
 
-  async function renderizarPainelFiltros() {
-    const [respostaFiltros, respostaInstancias] = await Promise.all([
-      SignalApi.ListarFiltros(),
-      SignalApi.ListarInstanciasZabbix(),
-    ]);
-    const filtros = respostaFiltros?.data ?? [];
-    cacheInstanciasZabbix = respostaInstancias?.data ?? [];
+  async function renderizarPainelAcronis() {
+    const resposta = await SignalApi.ListarContasAcronis();
+    const lista = resposta?.data ?? [];
+    const emEdicao = lista.find(c => c.id === idEmEdicao);
 
-    if (cacheInstanciasZabbix.length === 0) {
-      document.getElementById('modalConteudo').innerHTML = `
-        <div class="config-mensagem aviso">
-          Cadastre ao menos uma instância Zabbix antes de criar filtros.
-        </div>`;
-      return;
-    }
-
-    const emEdicao = filtros.find(f => f.id === idEmEdicao);
-    const alvoAtual = emEdicao?.alvo ?? ALVO_PADRAO;
     document.getElementById('modalConteudo').innerHTML = `
-      <form class="config-form" data-form="filtros">
-        <h3>${idEmEdicao ? 'Editar filtro' : 'Novo filtro'}</h3>
-        <label>Instância Zabbix *
-          <select name="instancia_id" ${idEmEdicao ? 'disabled' : ''} required>
-            ${montarOpcoesInstancia(emEdicao?.instancia_id)}
-          </select>
+      <form class="config-form" data-form="acronis">
+        <h3>${idEmEdicao ? 'Editar conta Acronis' : 'Nova conta Acronis'}</h3>
+        <label>Nome
+          <input name="nome" type="text" maxlength="120"
+                 value="${escapar(emEdicao?.nome ?? '')}" placeholder="Tenant principal" />
         </label>
-        <label>Alvo *
-          <select name="alvo" required>${montarOpcoesAlvo(alvoAtual)}</select>
+        <p class="config-dica">Informe a URL do datacenter <em>ou</em> o login (a URL é descoberta a partir dele).</p>
+        <label>URL do datacenter
+          <input name="server_url" type="url" maxlength="500"
+                 value="${escapar(emEdicao?.server_url ?? '')}"
+                 placeholder="https://eu2-cloud.acronis.com" />
         </label>
-        <div id="camposFiltro">${montarCamposFiltro(alvoAtual, emEdicao ?? {})}</div>
-        ${montarBotoesForm()}
+        <label>Login
+          <input name="login" type="text" maxlength="200"
+                 value="${escapar(emEdicao?.login ?? '')}" placeholder="operador@empresa" />
+        </label>
+        <label>Client ID *
+          <input name="client_id" type="text" maxlength="200" required
+                 value="${escapar(emEdicao?.client_id ?? '')}" placeholder="id do cliente da API" />
+        </label>
+        <label>Client Secret *
+          <input name="client_secret" type="text" maxlength="500" required
+                 value="${escapar(emEdicao?.client_secret ?? '')}" placeholder="segredo do cliente da API" />
+        </label>
+        ${SignalModal.BotoesForm(idEmEdicao)}
       </form>
-      <div class="config-mensagem" data-mensagem></div>
+      <div class="config-mensagem" data-mensagem role="alert" aria-live="polite"></div>
       <ul class="config-lista">
-        ${filtros.map(montarLinhaFiltro).join('') || itemVazio('Nenhum filtro cadastrado.')}
+        ${lista.map(montarLinhaAcronis).join('') || SignalModal.ItemVazio('Nenhuma conta Acronis cadastrada.')}
       </ul>
     `;
   }
 
 
-  // montarCamposFiltro gera apenas os inputs relevantes para o alvo
-  // selecionado. Campo único vira obrigatório; com dois, ao menos um.
-  function montarCamposFiltro(alvo, valores) {
-    const nomes = CAMPOS_POR_ALVO[alvo] ?? [];
-    const obrigatorioUnico = nomes.length === 1;
-
-    const dica = nomes.length > 1
-      ? `<p class="config-dica">Preencha ao menos um dos campos abaixo.</p>`
-      : '';
-
-    const campos = nomes.map(nome => `
-      <label>${ROTULOS_CAMPO_FILTRO[nome]}
-        <input name="${nome}" type="text" maxlength="200"
-               ${obrigatorioUnico ? 'required' : ''}
-               value="${escapar(valores[nome] ?? '')}" />
-      </label>
-    `).join('');
-
-    return dica + campos;
-  }
-
-
-  function montarLinhaFiltro(filtro) {
-    const partes = [];
-    if (filtro.valor)  partes.push(`valor: ${filtro.valor}`);
-    if (filtro.evento) partes.push(`evento: ${filtro.evento}`);
-    if (filtro.host)   partes.push(`host: ${filtro.host}`);
-
+  function montarLinhaAcronis(conta) {
+    const destino = conta.server_url
+      ? conta.server_url
+      : (conta.login ? `datacenter via login ${conta.login}` : '—');
     return `
       <li class="config-item">
         <div class="config-item-info">
-          <span class="config-item-titulo">${escapar(ROTULOS_ALVO[filtro.alvo] ?? filtro.alvo)}</span>
-          <span class="config-item-detalhe">${escapar(nomeDaInstancia(filtro.instancia_id))}</span>
-          <span class="config-item-detalhe">${escapar(partes.join(' · ') || '—')}</span>
+          <span class="config-item-titulo">${escapar(conta.nome || conta.client_id || 'conta sem nome')}</span>
+          <span class="config-item-detalhe">${escapar(destino)}</span>
+          <span class="config-item-detalhe">client id: ${escapar(conta.client_id)}</span>
+          <span class="config-item-detalhe">secret: ${escapar(mascarar(conta.client_secret))}</span>
         </div>
-        ${montarBotoesItem(filtro.id)}
+        ${SignalModal.BotoesItem(conta.id)}
       </li>
     `;
   }
@@ -277,15 +229,15 @@ const ConfiguracoesModal = (function () {
   async function salvarPainelAtivo(formulario) {
     if (painelAtivo === 'zabbix')   return await salvarZabbix(formulario);
     if (painelAtivo === 'mspcloud') return await salvarMsp(formulario);
-    return await salvarFiltro(formulario);
+    return await salvarAcronis(formulario);
   }
 
 
   async function salvarZabbix(formulario) {
     const dados = {
-      nome:    valorCampo(formulario, 'nome'),
-      url:     valorCampo(formulario, 'url'),
-      api_key: valorCampo(formulario, 'api_key'),
+      nome:    SignalModal.ValorCampo(formulario, 'nome'),
+      url:     SignalModal.ValorCampo(formulario, 'url'),
+      api_key: SignalModal.ValorCampo(formulario, 'api_key'),
     };
     if (idEmEdicao) {
       await SignalApi.AtualizarInstanciaZabbix(idEmEdicao, dados);
@@ -296,7 +248,7 @@ const ConfiguracoesModal = (function () {
 
 
   async function salvarMsp(formulario) {
-    const dados = { api_key: valorCampo(formulario, 'api_key') };
+    const dados = { api_key: SignalModal.ValorCampo(formulario, 'api_key') };
     if (idEmEdicao) {
       await SignalApi.AtualizarInstanciaMsp(idEmEdicao, dados);
     } else {
@@ -305,18 +257,18 @@ const ConfiguracoesModal = (function () {
   }
 
 
-  async function salvarFiltro(formulario) {
+  async function salvarAcronis(formulario) {
     const dados = {
-      instancia_id: Number(valorCampo(formulario, 'instancia_id')),
-      alvo:         valorCampo(formulario, 'alvo'),
-      valor:        valorCampo(formulario, 'valor'),
-      evento:       valorCampo(formulario, 'evento'),
-      host:         valorCampo(formulario, 'host'),
+      nome:          SignalModal.ValorCampo(formulario, 'nome'),
+      server_url:    SignalModal.ValorCampo(formulario, 'server_url'),
+      login:         SignalModal.ValorCampo(formulario, 'login'),
+      client_id:     SignalModal.ValorCampo(formulario, 'client_id'),
+      client_secret: SignalModal.ValorCampo(formulario, 'client_secret'),
     };
     if (idEmEdicao) {
-      await SignalApi.AtualizarFiltro(idEmEdicao, dados);
+      await SignalApi.AtualizarContaAcronis(idEmEdicao, dados);
     } else {
-      await SignalApi.CriarFiltro(dados);
+      await SignalApi.CriarContaAcronis(dados);
     }
   }
 
@@ -326,80 +278,14 @@ const ConfiguracoesModal = (function () {
   async function removerPainelAtivo(id) {
     if (painelAtivo === 'zabbix')   return await SignalApi.RemoverInstanciaZabbix(id);
     if (painelAtivo === 'mspcloud') return await SignalApi.RemoverInstanciaMsp(id);
-    return await SignalApi.RemoverFiltro(id);
-  }
-
-
-  // ----- Utilitários de montagem -----
-
-  function montarBotoesForm() {
-    const cancelar = idEmEdicao
-      ? `<button type="button" class="config-botao secundario" data-acao="cancelar">Cancelar</button>`
-      : '';
-    return `
-      <div class="config-form-acoes">
-        <button type="submit" class="config-botao">${idEmEdicao ? 'Salvar alterações' : 'Adicionar'}</button>
-        ${cancelar}
-      </div>`;
-  }
-
-
-  function montarBotoesItem(id) {
-    return `
-      <div class="config-item-acoes">
-        <button type="button" class="config-botao secundario" data-acao="editar" data-id="${id}">Editar</button>
-        <button type="button" class="config-botao perigo"    data-acao="remover" data-id="${id}">Remover</button>
-      </div>`;
-  }
-
-
-  function montarOpcoesInstancia(selecionada) {
-    return cacheInstanciasZabbix.map(instancia => {
-      const marca = instancia.id === selecionada ? 'selected' : '';
-      const rotulo = instancia.nome || instancia.url;
-      return `<option value="${instancia.id}" ${marca}>${escapar(rotulo)}</option>`;
-    }).join('');
-  }
-
-
-  function montarOpcoesAlvo(selecionado) {
-    return Object.entries(ROTULOS_ALVO).map(([valor, rotulo]) => {
-      const marca = valor === selecionado ? 'selected' : '';
-      return `<option value="${valor}" ${marca}>${escapar(rotulo)}</option>`;
-    }).join('');
-  }
-
-
-  function itemVazio(texto) {
-    return `<li class="config-item-vazio">${escapar(texto)}</li>`;
+    return await SignalApi.RemoverContaAcronis(id);
   }
 
 
   // ----- Utilitários gerais -----
 
-  function valorCampo(formulario, nome) {
-    const campo = formulario.elements.namedItem(nome);
-    return campo ? campo.value.trim() : '';
-  }
-
-
-  function nomeDaInstancia(id) {
-    const instancia = cacheInstanciasZabbix.find(i => i.id === id);
-    if (!instancia) return `instância #${id}`;
-    return instancia.nome || instancia.url;
-  }
-
-
   function exibirMensagem(texto, tipo) {
-    const alvo = document.querySelector('#modalConteudo [data-mensagem]');
-    if (!alvo) return;
-    alvo.textContent = texto;
-    alvo.className = `config-mensagem ${tipo}`;
-  }
-
-
-  function mensagemDeErro(erro) {
-    return erro?.message ?? String(erro);
+    SignalModal.ExibirMensagem(document.getElementById('modalConteudo'), texto, tipo);
   }
 
 
@@ -418,16 +304,6 @@ const ConfiguracoesModal = (function () {
   }
 
 
-  function escapar(texto) {
-    return String(texto ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-  }
-
-
   // ----- Handlers / listeners (sempre no final) -----
 
   function registrarHandlers() {
@@ -435,10 +311,7 @@ const ConfiguracoesModal = (function () {
     if (botaoAbrir) botaoAbrir.addEventListener('click', abrir);
 
     const botaoFechar = document.getElementById('botaoFecharConfiguracoes');
-    if (botaoFechar) botaoFechar.addEventListener('click', fechar);
-
-    const overlay = document.getElementById('modalConfiguracoes');
-    if (overlay) overlay.addEventListener('click', aoClicarOverlayHandler);
+    if (botaoFechar) botaoFechar.addEventListener('click', () => modal.fechar());
 
     document.querySelectorAll('.modal-aba').forEach(aba => {
       aba.addEventListener('click', () => trocarPainel(aba.dataset.painel));
@@ -448,22 +321,7 @@ const ConfiguracoesModal = (function () {
     if (conteudo) {
       conteudo.addEventListener('submit', aoEnviarFormularioHandler);
       conteudo.addEventListener('click', aoClicarConteudoHandler);
-      conteudo.addEventListener('change', aoMudarAlvoHandler);
     }
-
-    document.addEventListener('keydown', aoPressionarTeclaHandler);
-  }
-
-
-  function aoClicarOverlayHandler(evento) {
-    if (evento.target.id === 'modalConfiguracoes') fechar();
-  }
-
-
-  function aoPressionarTeclaHandler(evento) {
-    if (evento.key !== 'Escape') return;
-    const overlay = document.getElementById('modalConfiguracoes');
-    if (overlay && !overlay.classList.contains('escondida')) fechar();
   }
 
 
@@ -478,25 +336,8 @@ const ConfiguracoesModal = (function () {
       await renderizarPainelAtivo();
       exibirMensagem('Registro salvo com sucesso.', 'sucesso');
     } catch (erro) {
-      exibirMensagem(mensagemDeErro(erro), 'erro');
+      exibirMensagem(SignalModal.MensagemDeErro(erro), 'erro');
     }
-  }
-
-
-  function aoMudarAlvoHandler(evento) {
-    if (evento.target.name !== 'alvo') return;
-
-    const container = document.getElementById('camposFiltro');
-    const formulario = evento.target.form;
-    if (!container || !formulario) return;
-
-    // Preserva o que já foi digitado nos campos que continuam visíveis.
-    const valores = {
-      valor:  valorCampo(formulario, 'valor'),
-      evento: valorCampo(formulario, 'evento'),
-      host:   valorCampo(formulario, 'host'),
-    };
-    container.innerHTML = montarCamposFiltro(evento.target.value, valores);
   }
 
 
@@ -534,7 +375,7 @@ const ConfiguracoesModal = (function () {
       await renderizarPainelAtivo();
       exibirMensagem('Registro removido.', 'sucesso');
     } catch (erro) {
-      exibirMensagem(mensagemDeErro(erro), 'erro');
+      exibirMensagem(SignalModal.MensagemDeErro(erro), 'erro');
     }
   }
 

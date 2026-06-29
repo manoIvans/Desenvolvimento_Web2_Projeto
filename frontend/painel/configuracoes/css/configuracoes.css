@@ -1,42 +1,48 @@
-/* ----- Modal de configuracoes: overlay e janela ----- */
+/* ═══════════════════════════════════════════════
+   configuracoes.css — Modal de configurações (overlay, janela, abas,
+   formulários e listas). Responsivo: vira tela cheia no mobile.
+   ═══════════════════════════════════════════════ */
+
+/* ----- Overlay e janela ----- */
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, .5);
+  background: rgba(8, 10, 20, .55);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  z-index: 1000;
+  padding: var(--e5);
+  z-index: var(--z-modal);
 }
 
-/* Vence o .escondida de base.css — o seletor composto tem maior especificidade
-   que o .modal-overlay acima, então o modal fica oculto até abrir(). */
+/* Vence o .escondida de base.css (seletor composto = maior especificidade). */
 .modal-overlay.escondida {
   display: none;
 }
 
 .modal-janela {
   background: var(--superficie);
-  border-radius: 10px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-3);
   width: 100%;
   max-width: 640px;
-  max-height: 88vh;
+  max-height: 88dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, .28);
+  box-shadow: var(--sombra-3);
 }
 
 
-/* ----- Cabecalho do modal ----- */
+/* ----- Cabeçalho ----- */
 
 .modal-cabecalho {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: var(--e4) var(--e5);
   border-bottom: 1px solid var(--borda);
 }
 
@@ -47,37 +53,49 @@
 }
 
 .modal-fechar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
   background: transparent;
   border: 0;
   font-size: 1.1rem;
   cursor: pointer;
   color: var(--apagado);
-  padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--raio-1);
+  transition: color var(--trans), background var(--trans);
 }
 
 .modal-fechar:hover {
   color: var(--gravidade-desastre);
+  background: var(--erro-fundo);
 }
 
 
-/* ----- Abas do modal ----- */
+/* ----- Abas ----- */
 
 .modal-abas {
   display: flex;
-  gap: 4px;
-  padding: 0 20px;
+  gap: var(--e1);
+  padding: 0 var(--e5);
   border-bottom: 1px solid var(--borda);
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .modal-aba {
+  flex: 0 0 auto;
   background: transparent;
   border: 0;
-  padding: 11px 14px;
-  font-size: .9rem;
+  padding: var(--e3) var(--e3);
+  font-size: .88rem;
+  font-family: inherit;
   cursor: pointer;
   color: var(--apagado);
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color var(--trans), border-color var(--trans);
 }
 
 .modal-aba:hover {
@@ -87,34 +105,35 @@
 .modal-aba.ativa {
   color: var(--destaque);
   border-bottom-color: var(--destaque);
+  font-weight: 600;
 }
 
 
-/* ----- Conteudo rolavel ----- */
+/* ----- Conteúdo rolável ----- */
 
 .modal-conteudo {
-  padding: 18px 20px;
+  padding: var(--e5);
   overflow-y: auto;
 }
 
 .config-carregando {
   text-align: center;
   color: var(--apagado);
-  padding: 24px;
+  padding: var(--e5);
 }
 
 
-/* ----- Formulario ----- */
+/* ----- Formulário ----- */
 
 .config-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: var(--e3);
+  margin-bottom: var(--e5);
 }
 
 .config-form h3 {
-  margin: 0 0 2px;
+  margin: 0;
   font-size: .98rem;
   color: var(--texto);
 }
@@ -122,25 +141,28 @@
 .config-form label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--e1);
   font-size: .82rem;
   color: var(--apagado);
 }
 
 .config-form input,
 .config-form select {
-  padding: 8px 10px;
-  border: 1px solid var(--borda);
-  border-radius: 6px;
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-1);
   font-size: .9rem;
+  font-family: inherit;
   color: var(--texto);
-  background: var(--fundo);
+  background: var(--superficie-2);
+  transition: border-color var(--trans), box-shadow var(--trans);
 }
 
 .config-form input:focus,
 .config-form select:focus {
-  outline: 2px solid var(--destaque);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--destaque);
+  box-shadow: 0 0 0 3px var(--destaque-suave);
 }
 
 .config-dica {
@@ -151,31 +173,41 @@
 
 .config-form-acoes {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  flex-wrap: wrap;
+  gap: var(--e2);
+  margin-top: var(--e1);
 }
 
 
-/* ----- Botoes ----- */
+/* ----- Botões ----- */
 
 .config-botao {
+  min-height: 38px;
   background: var(--destaque);
-  color: #fff;
-  border: 0;
-  padding: 8px 14px;
-  border-radius: 6px;
+  color: var(--destaque-contraste);
+  border: 1px solid transparent;
+  padding: var(--e2) var(--e4);
+  border-radius: var(--raio-1);
   font-size: .85rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: filter var(--trans), background var(--trans), color var(--trans);
 }
 
 .config-botao:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.07);
 }
 
 .config-botao.secundario {
-  background: var(--fundo);
+  background: var(--superficie-2);
   color: var(--texto);
-  border: 1px solid var(--borda);
+  border-color: var(--borda-forte);
+}
+
+.config-botao.secundario:hover {
+  filter: none;
+  border-color: var(--destaque);
+  color: var(--destaque);
 }
 
 .config-botao.perigo {
@@ -188,8 +220,8 @@
 
 .config-mensagem {
   font-size: .85rem;
-  border-radius: 6px;
-  margin-bottom: 14px;
+  border-radius: var(--raio-1);
+  margin-bottom: var(--e4);
 }
 
 .config-mensagem:empty {
@@ -197,21 +229,21 @@
 }
 
 .config-mensagem.erro {
-  padding: 9px 12px;
-  background: #fdecea;
-  color: var(--gravidade-desastre);
+  padding: var(--e2) var(--e3);
+  background: var(--erro-fundo);
+  color: var(--erro-texto);
 }
 
 .config-mensagem.sucesso {
-  padding: 9px 12px;
-  background: #e7f5ec;
-  color: #1b7a3d;
+  padding: var(--e2) var(--e3);
+  background: var(--ok-fundo);
+  color: var(--ok-texto);
 }
 
 .config-mensagem.aviso {
-  padding: 9px 12px;
-  background: #fff6e0;
-  color: #946200;
+  padding: var(--e2) var(--e3);
+  background: var(--aviso-fundo);
+  color: var(--aviso-texto);
 }
 
 
@@ -223,17 +255,19 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--e2);
 }
 
 .config-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: var(--e2);
+  padding: var(--e3);
   border: 1px solid var(--borda);
-  border-radius: 8px;
+  border-radius: var(--raio-2);
+  background: var(--superficie-2);
 }
 
 .config-item-info {
@@ -241,12 +275,14 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1 1 240px;
 }
 
 .config-item-titulo {
   font-weight: 600;
   color: var(--texto);
   font-size: .9rem;
+  word-break: break-word;
 }
 
 .config-item-detalhe {
@@ -257,33 +293,39 @@
 
 .config-item-acoes {
   display: flex;
-  gap: 6px;
+  gap: var(--e2);
   flex-shrink: 0;
 }
 
 .config-item-vazio {
   text-align: center;
-  padding: 22px;
+  padding: var(--e5);
   color: var(--apagado);
-  border: 1px dashed var(--borda);
-  border-radius: 8px;
+  border: 1px dashed var(--borda-forte);
+  border-radius: var(--raio-2);
 }
 
 
-/* ----- Botao de configuracoes no cabecalho ----- */
+/* ----- Mobile: modal em tela cheia ----- */
 
-.botao-configuracoes {
-  background: var(--superficie);
-  color: var(--texto);
-  border: 1px solid var(--borda);
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: .85rem;
-  cursor: pointer;
-  transition: color .15s, border-color .15s;
-}
+@media (max-width: 560px) {
+  .modal-overlay {
+    padding: 0;
+  }
 
-.botao-configuracoes:hover {
-  color: var(--destaque);
-  border-color: var(--destaque);
+  .modal-janela {
+    max-width: 100%;
+    max-height: 100dvh;
+    height: 100%;
+    border-radius: 0;
+    border: 0;
+  }
+
+  .config-item-acoes {
+    width: 100%;
+  }
+
+  .config-item-acoes .config-botao {
+    flex: 1;
+  }
 }

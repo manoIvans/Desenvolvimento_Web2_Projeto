@@ -20,15 +20,20 @@ const MspCloudSecao = (function () {
     sistema: 'Sistema',
   };
 
-  const TIPO_PADRAO = 'sistema';
+  const TIPO_PADRAO     = 'sistema';
+  const ESQUELETO_CARDS = 6;
 
 
-  // ----- API publica -----
+  // ----- API pública -----
 
   async function Renderizar() {
     const container = document.getElementById('cardsMspCloud');
     const contador  = document.getElementById('contadorMspCloud');
     if (!container || !contador) return;
+
+    container.setAttribute('aria-busy', 'true');
+    container.innerHTML = SignalRender.Esqueleto(ESQUELETO_CARDS);
+    contador.textContent = '…';
 
     let alertas;
     try {
@@ -46,11 +51,12 @@ const MspCloudSecao = (function () {
   // ----- Internos -----
 
   function desenharCards(container, contador, alertas) {
+    container.setAttribute('aria-busy', 'false');
     const ordenados = ordenarPorHorarioDecrescente(alertas);
     contador.textContent = `${ordenados.length} ${ordenados.length === 1 ? 'alerta' : 'alertas'}`;
 
     if (ordenados.length === 0) {
-      container.innerHTML = `<div class="vazio">Nenhum alerta detectado.</div>`;
+      container.innerHTML = SignalRender.BlocoVazio('Nenhum alerta detectado.');
       return;
     }
 
@@ -64,7 +70,7 @@ const MspCloudSecao = (function () {
       cliente:   a.client || a.cliente || '—',
       tipo:      MAPA_KEYWORD_PARA_TIPO[a.product_keyword] ?? TIPO_PADRAO,
       descricao: extrairDescricao(a),
-      horario:   formatarHorario(a.created_at || a.timestamp || a.horario || ''),
+      horario:   SignalRender.FormatarHorario(a.created_at || a.timestamp || a.horario || ''),
     }));
   }
 
@@ -75,17 +81,18 @@ const MspCloudSecao = (function () {
 
 
   function montarCard(alerta) {
+    const esc = SignalRender.Escapar;
     const rotulo = ROTULO_TIPO[alerta.tipo] ?? '—';
     return `
-      <article class="card card-mspcloud tipo-${escapar(alerta.tipo)}">
+      <article class="card card-mspcloud tipo-${esc(alerta.tipo)}">
         <div class="card-topo">
-          <span class="card-titulo">${escapar(alerta.cliente)}</span>
-          <span class="selo selo-tipo-${escapar(alerta.tipo)}">${escapar(rotulo)}</span>
+          <span class="card-titulo">${esc(alerta.cliente)}</span>
+          <span class="selo selo-tipo-${esc(alerta.tipo)}">${esc(rotulo)}</span>
         </div>
-        <div class="card-evento">${escapar(alerta.descricao)}</div>
+        <div class="card-evento">${esc(alerta.descricao)}</div>
         <div class="card-rodape">
-          <span>ID #${escapar(String(alerta.id))}</span>
-          <span>${escapar(alerta.horario)}</span>
+          <span>ID #${esc(String(alerta.id))}</span>
+          <span>${esc(alerta.horario)}</span>
         </div>
       </article>
     `;
@@ -93,12 +100,13 @@ const MspCloudSecao = (function () {
 
 
   function mostrarErro(container, contador, erro) {
+    container.setAttribute('aria-busy', 'false');
     contador.textContent = '0 alertas';
-    container.innerHTML = `<div class="vazio">Erro ao carregar alertas MSP: ${escapar(erro?.message ?? String(erro))}</div>`;
+    container.innerHTML = SignalRender.BlocoErro(`Erro ao carregar alertas MSP: ${erro?.message ?? String(erro)}`);
   }
 
 
-  // ----- Utilitarios -----
+  // ----- Utilitários -----
 
   function extrairDescricao(alerta) {
     if (typeof alerta.message === 'string') return alerta.message;
@@ -120,25 +128,6 @@ const MspCloudSecao = (function () {
       if (partes.length >= 3) break;
     }
     return partes.join(' · ') || '—';
-  }
-
-
-  function formatarHorario(iso) {
-    if (!iso) return '—';
-    const data = new Date(iso);
-    if (isNaN(data.getTime())) return iso;
-    const pad = n => String(n).padStart(2, '0');
-    return `${data.getFullYear()}-${pad(data.getMonth() + 1)}-${pad(data.getDate())} ${pad(data.getHours())}:${pad(data.getMinutes())}:${pad(data.getSeconds())}`;
-  }
-
-
-  function escapar(texto) {
-    return String(texto)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
   }
 
 

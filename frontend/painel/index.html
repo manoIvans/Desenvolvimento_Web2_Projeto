@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SignalHub — Painel de Alertas</title>
 
-  <link rel="stylesheet" href="nucleo/base.css" />
   <link rel="stylesheet" href="nucleo/tema.css" />
+  <link rel="stylesheet" href="nucleo/base.css" />
   <link rel="stylesheet" href="componentes/card.css" />
   <link rel="stylesheet" href="zabbix/css/zabbix.css" />
   <link rel="stylesheet" href="mspcloud/css/mspcloud.css" />
+  <link rel="stylesheet" href="acronis/css/acronis.css" />
   <link rel="stylesheet" href="configuracoes/css/configuracoes.css" />
 </head>
 <body>
@@ -23,31 +24,43 @@
       <button class="botao-configuracoes" id="botaoConfiguracoes">⚙️ configurações</button>
       <button class="botao-atualizar" id="botaoAtualizar">⟳ atualizar</button>
       <button class="botao-sair" id="botaoSair" title="Sair">⎋ sair</button>
-      <span class="cabecalho-info" id="ultimaAtualizacao">—</span>
+      <span class="cabecalho-info" id="ultimaAtualizacao" aria-live="polite">—</span>
     </div>
   </header>
 
-  <nav class="navegacao">
-    <button class="aba ativa" data-secao="zabbix">🛡️ Zabbix</button>
-    <button class="aba"        data-secao="mspcloud">☁️ MSP Clouds</button>
+  <nav class="navegacao" role="tablist" aria-label="Fontes de alertas">
+    <button class="aba ativa" id="aba-zabbix"   role="tab" aria-selected="true"  tabindex="0"  aria-controls="secao-zabbix"   data-secao="zabbix">🛡️ Zabbix</button>
+    <button class="aba"        id="aba-mspcloud" role="tab" aria-selected="false" tabindex="-1" aria-controls="secao-mspcloud" data-secao="mspcloud">☁️ MSP Clouds</button>
+    <button class="aba"        id="aba-acronis"  role="tab" aria-selected="false" tabindex="-1" aria-controls="secao-acronis"  data-secao="acronis">💾 Acronis</button>
   </nav>
 
   <main class="conteudo">
 
-    <section id="secao-zabbix" class="secao">
+    <section id="secao-zabbix" class="secao" role="tabpanel" tabindex="0" aria-labelledby="aba-zabbix">
       <div class="secao-cabecalho">
         <h2>Problemas Zabbix</h2>
-        <span class="contador" id="contadorZabbix">0 problemas</span>
+        <div class="secao-cabecalho-acoes">
+          <button class="botao-secao" id="botaoFiltrosZabbix" type="button" title="Configurar filtros do Zabbix">⚙️ filtros</button>
+          <span class="contador" id="contadorZabbix" aria-live="polite">0 problemas</span>
+        </div>
       </div>
-      <div class="grade-cards" id="cardsZabbix"></div>
+      <div class="grade-cards" id="cardsZabbix" aria-live="polite"></div>
     </section>
 
-    <section id="secao-mspcloud" class="secao escondida">
+    <section id="secao-mspcloud" class="secao escondida" role="tabpanel" tabindex="0" aria-labelledby="aba-mspcloud">
       <div class="secao-cabecalho">
         <h2>Alertas MSP Clouds</h2>
-        <span class="contador" id="contadorMspCloud">0 alertas</span>
+        <span class="contador" id="contadorMspCloud" aria-live="polite">0 alertas</span>
       </div>
-      <div class="grade-cards" id="cardsMspCloud"></div>
+      <div class="grade-cards" id="cardsMspCloud" aria-live="polite"></div>
+    </section>
+
+    <section id="secao-acronis" class="secao escondida" role="tabpanel" tabindex="0" aria-labelledby="aba-acronis">
+      <div class="secao-cabecalho">
+        <h2>Alertas Acronis</h2>
+        <span class="contador" id="contadorAcronis" aria-live="polite">0 alertas</span>
+      </div>
+      <div class="grade-cards" id="cardsAcronis" aria-live="polite"></div>
     </section>
 
   </main>
@@ -61,20 +74,36 @@
         <h2 id="modalConfiguracoesTitulo">⚙️ Configurações</h2>
         <button class="modal-fechar" id="botaoFecharConfiguracoes" aria-label="Fechar">✕</button>
       </header>
-      <nav class="modal-abas">
-        <button class="modal-aba ativa" data-painel="zabbix">Instâncias Zabbix</button>
-        <button class="modal-aba"        data-painel="mspcloud">Instâncias MSP Clouds</button>
-        <button class="modal-aba"        data-painel="filtros">Filtros Zabbix</button>
+      <nav class="modal-abas" role="tablist" aria-label="Configurações">
+        <button class="modal-aba ativa" role="tab" aria-selected="true"  aria-controls="modalConteudo" data-painel="zabbix">Instâncias Zabbix</button>
+        <button class="modal-aba"        role="tab" aria-selected="false" aria-controls="modalConteudo" data-painel="mspcloud">Instâncias MSP Clouds</button>
+        <button class="modal-aba"        role="tab" aria-selected="false" aria-controls="modalConteudo" data-painel="acronis">Contas Acronis</button>
       </nav>
-      <div class="modal-conteudo" id="modalConteudo"></div>
+      <div class="modal-conteudo" id="modalConteudo" role="tabpanel"></div>
     </div>
   </div>
 
-  <!-- Núcleo (api + orquestrador) -->
+  <!-- Modal dedicado de filtros (exclusivo Zabbix) -->
+  <div class="modal-overlay escondida" id="modalFiltros">
+    <div class="modal-janela" role="dialog" aria-modal="true" aria-labelledby="modalFiltrosTitulo">
+      <header class="modal-cabecalho">
+        <h2 id="modalFiltrosTitulo">🎚️ Filtros Zabbix</h2>
+        <button class="modal-fechar" id="botaoFecharFiltros" aria-label="Fechar">✕</button>
+      </header>
+      <div class="modal-conteudo" id="modalFiltrosConteudo"></div>
+    </div>
+  </div>
+
+  <!-- Núcleo (sessão + util de render + modal + api + seções + orquestrador) -->
+  <script src="../nucleo/sessao.js"                  defer></script>
+  <script src="nucleo/comum.js"                      defer></script>
+  <script src="nucleo/modal.js"                      defer></script>
   <script src="nucleo/api.js"                        defer></script>
   <script src="zabbix/scripts/zabbix.js"             defer></script>
   <script src="mspcloud/scripts/mspcloud.js"         defer></script>
+  <script src="acronis/scripts/acronis.js"           defer></script>
   <script src="configuracoes/scripts/configuracoes.js" defer></script>
+  <script src="filtros/scripts/filtros.js"           defer></script>
   <script src="nucleo/nucleo.js"                     defer></script>
 
 </body>

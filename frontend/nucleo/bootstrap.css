@@ -1,0 +1,22 @@
+/* nucleo/bootstrap.css — estilo do splash de redirecionamento (index raiz). */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #f3f4f8;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #646878;
+  font-size: .9rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  html, body { background: #0e1016; }
+  body { color: #969bad; }
+}

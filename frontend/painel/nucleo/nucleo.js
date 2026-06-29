@@ -11,11 +11,13 @@
   const RENDERIZADORES = {
     zabbix:   () => ZabbixSecao.Renderizar(),
     mspcloud: () => MspCloudSecao.Renderizar(),
+    acronis:  () => AcronisSecao.Renderizar(),
   };
 
   const ATUALIZADORES = {
     zabbix:   () => SignalApi.RefreshZabbix(),
     mspcloud: () => SignalApi.RefreshMsp(),
+    acronis:  () => SignalApi.RefreshAcronis(),
   };
 
   const EVENTO_CONFIGURACOES_ALTERADAS = 'configuracoesAlteradasEvent';
@@ -26,13 +28,14 @@
   // ----- Bootstrap -----
 
   async function inicializar() {
-    // Sem token → painel não tem o que fazer; volta pro login.
-    if (!SignalApi.TokenAtual()) {
+    // Sem sessão renovável → painel não tem o que fazer; volta pro login.
+    if (!SignalSessao.Ativa()) {
       window.location.replace(URL_LOGIN);
       return;
     }
 
     ConfiguracoesModal.Inicializar();
+    FiltrosModal.Inicializar();
     await renderizarTodas();
     atualizarHorario();
     trocarSecao(ID_SECAO_PADRAO);
@@ -64,7 +67,10 @@
       secao.classList.toggle('escondida', secao.id !== `secao-${idSecao}`);
     });
     document.querySelectorAll('.aba').forEach(aba => {
-      aba.classList.toggle('ativa', aba.dataset.secao === idSecao);
+      const ativa = aba.dataset.secao === idSecao;
+      aba.classList.toggle('ativa', ativa);
+      aba.setAttribute('aria-selected', ativa ? 'true' : 'false');
+      aba.tabIndex = ativa ? 0 : -1; // roving tabindex (padrão WAI-ARIA tabs)
     });
   }
 
@@ -98,7 +104,33 @@
   function registrarHandlersAbas() {
     document.querySelectorAll('.aba').forEach(aba => {
       aba.addEventListener('click', () => trocarSecao(aba.dataset.secao));
+      aba.addEventListener('keydown', aoTeclarNaAbaHandler);
     });
+  }
+
+
+  // aoTeclarNaAbaHandler implementa a navegação por teclado do padrão tablist:
+  // setas movem (e ativam) a aba vizinha, Home/End vão para a primeira/última.
+  function aoTeclarNaAbaHandler(evento) {
+    const abas = Array.from(document.querySelectorAll('.aba'));
+    const atual = abas.indexOf(evento.currentTarget);
+    if (atual === -1) return;
+
+    let destino;
+    switch (evento.key) {
+      case 'ArrowRight':
+      case 'ArrowDown': destino = (atual + 1) % abas.length; break;
+      case 'ArrowLeft':
+      case 'ArrowUp':   destino = (atual - 1 + abas.length) % abas.length; break;
+      case 'Home':      destino = 0; break;
+      case 'End':       destino = abas.length - 1; break;
+      default: return;
+    }
+
+    evento.preventDefault();
+    const alvo = abas[destino];
+    trocarSecao(alvo.dataset.secao);
+    alvo.focus();
   }
 
 

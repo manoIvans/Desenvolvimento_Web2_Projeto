@@ -1,7 +1,7 @@
 // internal/instancias/tipos.go
 //
-// DTOs de entrada/saída do domínio Instâncias (Zabbix e MSP Clouds) e
-// conversão a partir dos registros gerados pelo sqlc.
+// DTOs de entrada/saída do domínio Instâncias (Zabbix, MSP Clouds e contas
+// Acronis) e conversão a partir dos registros gerados pelo sqlc.
 
 package instancias
 
@@ -38,6 +38,18 @@ type MspInstancia struct {
 	AtualizadoEm string `json:"atualizado_em"`
 }
 
+// AcronisConta é o DTO de saída de uma conta Acronis.
+type AcronisConta struct {
+	ID           int32  `json:"id"`
+	Nome         string `json:"nome"`
+	ServerURL    string `json:"server_url"`
+	Login        string `json:"login"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	CriadoEm     string `json:"criado_em"`
+	AtualizadoEm string `json:"atualizado_em"`
+}
+
 // ----- Tipos de entrada -----
 
 // EntradaZabbix é o corpo aceito em POST/PUT de instâncias Zabbix.
@@ -50,6 +62,15 @@ type EntradaZabbix struct {
 // EntradaMsp é o corpo aceito em POST/PUT de instâncias MSP Clouds.
 type EntradaMsp struct {
 	APIKey string `json:"api_key"`
+}
+
+// EntradaAcronis é o corpo aceito em POST/PUT de contas Acronis.
+type EntradaAcronis struct {
+	Nome         string `json:"nome"`
+	ServerURL    string `json:"server_url"`
+	Login        string `json:"login"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
 }
 
 // ----- Conversão -----
@@ -90,6 +111,29 @@ func ConverterListaMsp(lista []consultas.MspInstancia) []MspInstancia {
 	saida := make([]MspInstancia, 0, len(lista))
 	for _, m := range lista {
 		saida = append(saida, ConverterMsp(m))
+	}
+	return saida
+}
+
+// ConverterAcronis transforma o registro do sqlc no DTO de saída.
+func ConverterAcronis(c consultas.AcronisConta) AcronisConta {
+	return AcronisConta{
+		ID:           c.ID,
+		Nome:         c.Nome,
+		ServerURL:    c.ServerUrl,
+		Login:        c.Login,
+		ClientID:     c.ClientID,
+		ClientSecret: c.ClientSecret,
+		CriadoEm:     banco.FormatarHorario(c.CriadoEm),
+		AtualizadoEm: banco.FormatarHorario(c.AtualizadoEm),
+	}
+}
+
+// ConverterListaAcronis aplica ConverterAcronis a uma fatia de registros.
+func ConverterListaAcronis(lista []consultas.AcronisConta) []AcronisConta {
+	saida := make([]AcronisConta, 0, len(lista))
+	for _, c := range lista {
+		saida = append(saida, ConverterAcronis(c))
 	}
 	return saida
 }

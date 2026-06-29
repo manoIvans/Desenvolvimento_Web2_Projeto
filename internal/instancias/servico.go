@@ -1,8 +1,9 @@
 // internal/instancias/servico.go
 //
-// Regras de negócio do domínio Instâncias: validação no servidor e CRUD
-// persistido via consultas sqlc. Inclui a leitura aninhada da instância
-// Zabbix com seus filtros (relacionamento 1:N).
+// Regras de negócio do domínio Instâncias (Zabbix, MSP Clouds e contas
+// Acronis): validação no servidor e CRUD persistido via consultas sqlc.
+// Inclui a leitura aninhada da instância Zabbix com seus filtros
+// (relacionamento 1:N).
 
 package instancias
 
@@ -21,9 +22,12 @@ import (
 // ----- Constantes -----
 
 const (
-	MAX_TAMANHO_NOME    = 120
-	MAX_TAMANHO_URL     = 500
-	MAX_TAMANHO_API_KEY = 500
+	MAX_TAMANHO_NOME          = 120
+	MAX_TAMANHO_URL           = 500
+	MAX_TAMANHO_API_KEY       = 500
+	MAX_TAMANHO_LOGIN         = 200
+	MAX_TAMANHO_CLIENT_ID     = 200
+	MAX_TAMANHO_CLIENT_SECRET = 500
 )
 
 // ----- Tipo Servico -----
@@ -180,6 +184,79 @@ func (s *Servico) RemoverMsp(contexto context.Context, id int32) error {
 	return nil
 }
 
+// ----- Acronis: API pública -----
+
+// ListarAcronis devolve todas as contas Acronis cadastradas.
+func (s *Servico) ListarAcronis(contexto context.Context) ([]AcronisConta, error) {
+	registros, err := s.consultas.ListarAcronisContas(contexto)
+	if err != nil {
+		return nil, err
+	}
+	return ConverterListaAcronis(registros), nil
+}
+
+// BuscarAcronis devolve uma conta Acronis pelo id.
+func (s *Servico) BuscarAcronis(contexto context.Context, id int32) (AcronisConta, error) {
+	registro, err := s.consultas.BuscarAcronisConta(contexto, id)
+	if err != nil {
+		return AcronisConta{}, err
+	}
+	return ConverterAcronis(registro), nil
+}
+
+// CriarAcronis valida a entrada e insere uma nova conta Acronis.
+func (s *Servico) CriarAcronis(contexto context.Context, entrada EntradaAcronis) (AcronisConta, error) {
+	entrada = normalizarAcronis(entrada)
+	if err := validarAcronis(entrada); err != nil {
+		return AcronisConta{}, err
+	}
+
+	registro, err := s.consultas.CriarAcronisConta(contexto, consultas.CriarAcronisContaParams{
+		Nome:         entrada.Nome,
+		ServerUrl:    entrada.ServerURL,
+		Login:        entrada.Login,
+		ClientID:     entrada.ClientID,
+		ClientSecret: entrada.ClientSecret,
+	})
+	if err != nil {
+		return AcronisConta{}, err
+	}
+	return ConverterAcronis(registro), nil
+}
+
+// AtualizarAcronis valida a entrada e sobrescreve uma conta Acronis.
+func (s *Servico) AtualizarAcronis(contexto context.Context, id int32, entrada EntradaAcronis) (AcronisConta, error) {
+	entrada = normalizarAcronis(entrada)
+	if err := validarAcronis(entrada); err != nil {
+		return AcronisConta{}, err
+	}
+
+	registro, err := s.consultas.AtualizarAcronisConta(contexto, consultas.AtualizarAcronisContaParams{
+		ID:           id,
+		Nome:         entrada.Nome,
+		ServerUrl:    entrada.ServerURL,
+		Login:        entrada.Login,
+		ClientID:     entrada.ClientID,
+		ClientSecret: entrada.ClientSecret,
+	})
+	if err != nil {
+		return AcronisConta{}, err
+	}
+	return ConverterAcronis(registro), nil
+}
+
+// RemoverAcronis apaga uma conta Acronis pelo id.
+func (s *Servico) RemoverAcronis(contexto context.Context, id int32) error {
+	linhas, err := s.consultas.RemoverAcronisConta(contexto, id)
+	if err != nil {
+		return err
+	}
+	if linhas == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 // ----- Validação -----
 
 func validarZabbix(entrada EntradaZabbix) error {
@@ -223,11 +300,53 @@ func validarApiKey(chave string) error {
 	return nil
 }
 
+// validarAcronis exige client_id e client_secret e ao menos um destino
+// (server_url OU login, já que a URL do datacenter pode ser descoberta a
+// partir do login). server_url, quando informado, precisa ser http/https.
+func validarAcronis(entrada EntradaAcronis) error {
+	if len(entrada.Nome) > MAX_TAMANHO_NOME {
+		return resposta.Validacao("nome excede o tamanho máximo de 120 caracteres")
+	}
+	if entrada.ServerURL == "" && entrada.Login == "" {
+		return resposta.Validacao("informe server_url ou login para localizar o datacenter")
+	}
+	if entrada.ServerURL != "" {
+		if err := validarURL(entrada.ServerURL); err != nil {
+			return err
+		}
+	}
+	if len(entrada.Login) > MAX_TAMANHO_LOGIN {
+		return resposta.Validacao("login excede o tamanho máximo de 200 caracteres")
+	}
+	if entrada.ClientID == "" {
+		return resposta.Validacao("client_id é obrigatório")
+	}
+	if len(entrada.ClientID) > MAX_TAMANHO_CLIENT_ID {
+		return resposta.Validacao("client_id excede o tamanho máximo de 200 caracteres")
+	}
+	if entrada.ClientSecret == "" {
+		return resposta.Validacao("client_secret é obrigatório")
+	}
+	if len(entrada.ClientSecret) > MAX_TAMANHO_CLIENT_SECRET {
+		return resposta.Validacao("client_secret excede o tamanho máximo de 500 caracteres")
+	}
+	return nil
+}
+
 // ----- Utilitários -----
 
 func normalizarZabbix(entrada EntradaZabbix) EntradaZabbix {
 	entrada.Nome = strings.TrimSpace(entrada.Nome)
 	entrada.URL = strings.TrimSpace(entrada.URL)
 	entrada.APIKey = strings.TrimSpace(entrada.APIKey)
+	return entrada
+}
+
+func normalizarAcronis(entrada EntradaAcronis) EntradaAcronis {
+	entrada.Nome = strings.TrimSpace(entrada.Nome)
+	entrada.ServerURL = strings.TrimSpace(entrada.ServerURL)
+	entrada.Login = strings.TrimSpace(entrada.Login)
+	entrada.ClientID = strings.TrimSpace(entrada.ClientID)
+	entrada.ClientSecret = strings.TrimSpace(entrada.ClientSecret)
 	return entrada
 }
